@@ -1,0 +1,55 @@
+import "dotenv/config";
+
+export const getSearxngApiEndpoint = (): string => {
+  const endpoint = process.env.SEARXNG_URL;
+
+  if (!endpoint) {
+    throw new Error("SEARXNG_URL is not defined");
+  }
+
+  return endpoint;
+};
+
+export const getChatModelProvider = (): string => {
+  const provider = process.env.CHAT_MODEL_PROVIDER;
+
+  if (!provider) {
+    throw new Error("CHAT_MODEL_PROVIDER is not defined");
+  }
+
+  return provider;
+};
+
+export const getChatModel = (): string => {
+  const model = process.env.CHAT_MODEL;
+
+  if (!model) {
+    throw new Error("CHAT_MODEL is not defined");
+  }
+
+  return model;
+};
+
+export const getOllamaApiEndpoint = (): string => {
+  return process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+};
+
+export const getOpenRouterApiKey = (): string => {
+  const key = process.env.OPENROUTER_API_KEY;
+
+  if (!key) {
+    throw new Error("OPENROUTER_API_KEY is not defined");
+  }
+
+  return key;
+};
+
+export const getGoogleApiKey = (): string => {
+  const key = process.env.GOOGLE_API_KEY;
+
+  if (!key) {
+    throw new Error("GOOGLE_API_KEY is not defined");
+  }
+
+  return key;
+};
