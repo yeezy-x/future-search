@@ -16,20 +16,14 @@ import { Document } from "langchain";
 const basicSearchRetrieverPrompt = `
   You will be given a conversation below and a follow up question. You need to rephrase the follow-up question if needed so it is a standalone question that can be used by the LLM to search the web for information.
   If it is a writing task or a simple hi, hello rather than a question, you need to return \`not_needed\` as the response.
-
   Example:
   1. Follow up question: What is the capital of France?
   Rephrased: Capital of france
-
   2. Follow up question: What is the population of New York City?
   Rephrased: Population of New York City
-
   3. Follow up question: What is Docker?
   Rephrased: What is Docker
-
-  Conversation:
-  {chat_history}
-
+  Conversation:{chat_history}
   Follow up question: {query}
   Rephrased question:
 `;
@@ -202,7 +196,7 @@ const createBasicWebSearchAnsweringChain=(llm:BaseChatModel,embeddings:Embedding
       ["user", "{query}"],
     ]),
     llm,
-    
+
     strParser,
   ]).withConfig({
     runName: "FinalResponseGenerator",
