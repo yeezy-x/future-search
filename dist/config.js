@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getGoogleApiKey = exports.getOpenRouterApiKey = exports.getOllamaApiEndpoint = exports.getChatModel = exports.getChatModelProvider = exports.getSearxngApiEndpoint = void 0;
+exports.getSimilarityMeasure = exports.getGoogleApiKey = exports.getOpenRouterApiKey = exports.getOllamaApiEndpoint = exports.getChatModel = exports.getChatModelProvider = exports.getSearxngApiEndpoint = void 0;
 require("dotenv/config");
 const getSearxngApiEndpoint = () => {
     const endpoint = process.env.SEARXNG_URL;
@@ -46,3 +46,11 @@ const getGoogleApiKey = () => {
     return key;
 };
 exports.getGoogleApiKey = getGoogleApiKey;
+const getSimilarityMeasure = () => {
+    const measure = process.env.SIMILARITY_MEASURE;
+    if (!measure) {
+        throw new Error("SIMILARITY_MEASURE is not defined");
+    }
+    return measure;
+};
+exports.getSimilarityMeasure = getSimilarityMeasure;

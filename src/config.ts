@@ -53,3 +53,13 @@ export const getGoogleApiKey = (): string => {
 
   return key;
 };
+
+export const getSimilarityMeasure = (): string => {
+  const measure = process.env.SIMILARITY_MEASURE;
+
+  if (!measure) {
+    throw new Error("SIMILARITY_MEASURE is not defined");
+  }
+
+  return measure;
+};

@@ -3,3 +3,5 @@ config.toml
 node_modules
 .next
 .env
+dist/
+config.toml

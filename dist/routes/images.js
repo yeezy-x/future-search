@@ -10,6 +10,7 @@ const model_selector_1 = require("../modules/ai/model.selector");
 const imagesRouter = (0, express_1.Router)();
 imagesRouter.post("/search", async (req, res) => {
     try {
+        console.log("images search request received:", req.body);
         let { query, chat_history = [] } = req.body;
         const formatted_chat_history = chat_history.map((msg) => {
             if (msg.role === "user") {
@@ -19,8 +20,11 @@ imagesRouter.post("/search", async (req, res) => {
                 return new messages_1.AIMessage(msg.content);
             }
         });
+        console.log("formatted chat history:", formatted_chat_history);
         const llm = await (0, model_selector_1.getSelectedChatModel)();
+        console.log("llm:", llm);
         const images = await (0, imageSearchAgent_1.default)({ chat_history: formatted_chat_history, query }, llm);
+        console.log("images search response:", images);
         res.json(images);
     }
     catch (error) {

@@ -45,10 +45,14 @@ const createImageSearchChain = (llm) => {
         llm,
         strParser,
         runnables_1.RunnableLambda.from(async (input) => {
+            console.log("\n========== IMAGE SEARCH ==========");
+            console.log("Rewritten query:", input);
             const res = await searxngClient.search(input, {
                 categories: ["images"],
                 engines: ["bing images", "google images"]
             });
+            console.log("SearXNG results:", res.results.length);
+            console.log("SearXNG results:", res.results);
             const images = [];
             res.results.forEach((result) => {
                 if (result.img_src && result.url && result.title) {
@@ -59,12 +63,14 @@ const createImageSearchChain = (llm) => {
                     });
                 }
             });
+            console.log("Valid images:", images);
             return images.slice(0, 10);
         })
     ]);
 };
 const handleImageSearch = (input, llm) => {
     const imageSearchChain = createImageSearchChain(llm);
+    console.log("imageSearchChain:", imageSearchChain);
     return imageSearchChain.invoke(input);
 };
 exports.default = handleImageSearch;
