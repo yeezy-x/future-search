@@ -2,7 +2,6 @@
 
 import {
   BookOpenText,
-  CircleAlert,
   Home,
   Search,
   Settings,

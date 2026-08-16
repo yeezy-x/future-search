@@ -7,8 +7,8 @@ const imagesRouter=Router();
 
 imagesRouter.post("/search",async (req,res)=>{
     try{
-        console.log("images search request received:",req.body);
-        let {query, chat_history = []}=req.body;
+        console.log("Images search request received:",req.body);
+        let {query, chat_history}=req.body;
         const formatted_chat_history=chat_history.map((msg:any)=>{
             if(msg.role==="user"){
                 return new HumanMessage(msg.content);
@@ -16,9 +16,9 @@ imagesRouter.post("/search",async (req,res)=>{
                 return new AIMessage(msg.content);
             }
         })
-        console.log("formatted chat history:",formatted_chat_history);
+        console.log("Formatted chat history:",formatted_chat_history);
         const llm=await getSelectedChatModel();
-        console.log("llm:",llm);
+        console.log("LLM:",llm);
         const images=await handleImageSearch(
             {chat_history:formatted_chat_history,query},
             llm

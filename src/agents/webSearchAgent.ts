@@ -12,6 +12,7 @@ import { Embeddings } from "@langchain/core/embeddings";
 import { StreamEvent } from "@langchain/core/tracers/log_stream";
 import eventEmitter from "events";
 import { Document } from "langchain";
+import { formatChatHistoryAsString } from "../utils/formatSearchHistory";
 
 const basicSearchRetrieverPrompt = `
   You will be given a conversation below and a follow up question. You need to rephrase the follow-up question if needed so it is a standalone question that can be used by the LLM to search the web for information.
@@ -86,13 +87,6 @@ type WebSearchChainInput={
   query:string;
   chat_history:BaseMessage[];  
 }
-
-const formatChatHistoryAsString = (history: BaseMessage[]) => {
-    return history.map(
-        (message) =>
-        `${message._getType()}: ${message.content}`
-    ).join("\n");
-};
   
 const strParser = new StringOutputParser();
 const searchClient = new SearxngClient(getSearxngApiEndpoint());
