@@ -1,7 +1,7 @@
 import { ArrowLeftRight } from "lucide-react";
 
 const Rewrite = ({
-  rewrite,
+ rewrite,
   messageId,
 }: {
   rewrite: (messagedId: string) => void;

@@ -1,7 +1,6 @@
 import {WebSocketServer} from "ws"
 import http from "http"
 import { handleConnection } from "./connectionManager";
-import ws from "ws"
 
 export const initServer=(
     server:http.Server<typeof http.IncomingMessage, typeof http.ServerResponse>

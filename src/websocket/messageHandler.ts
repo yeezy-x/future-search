@@ -14,6 +14,7 @@ type Message = {
 
 const searchHandlers = {
   webSearch: handleWebSearch,
+  
 }
 
 const handleEmitterEvents = (

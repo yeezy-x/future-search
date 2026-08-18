@@ -136,7 +136,6 @@ const createBasicWebSearchRetrieverChain=(llm:BaseChatModel)=>{
   ])
 }
 
-
 const createBasicWebSearchAnsweringChain=(llm:BaseChatModel,embeddings:Embeddings)=>{
   const basicWebSearchRetrieverChain=createBasicWebSearchRetrieverChain(llm);
   const semanticReranking = RunnableLambda.from(
@@ -190,7 +189,6 @@ const createBasicWebSearchAnsweringChain=(llm:BaseChatModel,embeddings:Embedding
       ["user", "{query}"],
     ]),
     llm,
-
     strParser,
   ]).withConfig({
     runName: "FinalResponseGenerator",
@@ -226,8 +224,8 @@ const handleWebSearch=async (
     embeddings:Embeddings
 )=>{
   //start an event 
-  const event=basicWebSearch(input,llm,embeddings)
-  return event;
+  const eventEmitter=basicWebSearch(input,llm,embeddings)
+  return eventEmitter;
 }
 
 export default handleWebSearch;
