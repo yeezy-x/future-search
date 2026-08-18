@@ -1,8 +1,10 @@
-import http from "http";
-import {initServer} from "./websocketServer"
+import { WebSocketServer } from "ws";
+import { handleConnection } from "./connectionManager";
 
 export const startWebSocketServer = (
-    server: http.Server<typeof http.IncomingMessage, typeof http.ServerResponse>
-  ) => {
-    initServer(server);
+  wss: WebSocketServer
+) => {
+  wss.on("connection", handleConnection);
+
+  console.log("WebSocket server initialized");
 };
