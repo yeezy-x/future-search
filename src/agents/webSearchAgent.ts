@@ -55,31 +55,98 @@ const handleStream = async (
   stream: AsyncGenerator<StreamEvent, any, unknown>,
   emitter: eventEmitter
 ) => {
-  for await (const event of stream) {
-    if (
-      event.event === "on_chain_end" &&
-      event.name === "FinalSourceRetriever"
-    ) {
-      emitter.emit(
-        "data",
-        JSON.stringify({ type: "sources", data: event.data.output })
+  console.log("[4] Handling stream");
+
+  try {
+    for await (const event of stream) {
+      // -----------------------------------------
+      // DEBUG: See what LangChain is emitting
+      // -----------------------------------------
+      console.log(
+        "\n========== STREAM EVENT =========="
       );
-    }
-    if (
-      event.event === "on_chain_stream" &&
-      event.name === "FinalResponseGenerator"
-    ) {
-      emitter.emit(
-        "data",
-        JSON.stringify({ type: "response", data: event.data.chunk })
+
+      console.log("event:", event.event);
+      console.log("name:", event.name);
+      console.log(
+        "data:",
+        JSON.stringify(event.data, null, 2)
       );
+
+      console.log(
+        "==================================\n"
+      );
+
+      // -----------------------------------------
+      // 1. Search sources are ready
+      // -----------------------------------------
+      if (
+        event.event === "on_chain_end" &&
+        event.name === "FinalSourceRetriever"
+      ) {
+        console.log("[5] Sources retrieved");
+
+        emitter.emit(
+          "data",
+          JSON.stringify({
+            type: "sources",
+            data: event.data.output,
+          })
+        );
+      }
+
+      // -----------------------------------------
+      // 2. Response token/chunk received
+      // -----------------------------------------
+      if (
+        event.event === "on_chain_stream" &&
+        event.name === "FinalResponseGenerator"
+      ) {
+        const chunk = event.data?.chunk;
+
+        // Ignore empty chunks
+        if (!chunk) {
+          continue;
+        }
+
+        console.log(
+          "[6] Response chunk:",
+          JSON.stringify(chunk)
+        );
+
+        emitter.emit(
+          "data",
+          JSON.stringify({
+            type: "response",
+            data: chunk,
+          })
+        );
+      }
+
+      // -----------------------------------------
+      // 3. Final response completed
+      // -----------------------------------------
+      if (
+        event.event === "on_chain_end" &&
+        event.name === "FinalResponseGenerator"
+      ) {
+        console.log("[7] Response generation completed");
+
+        emitter.emit("end");
+      }
     }
-    if (
-      event.event === "on_chain_end" &&
-      event.name === "FinalResponseGenerator"
-    ) {
-      emitter.emit("end");
-    }
+
+    console.log("[8] Stream finished");
+
+  } catch (error) {
+    console.error("[STREAM ERROR]", error);
+
+    emitter.emit(
+      "error",
+      JSON.stringify({
+        data: "An error occurred while processing the response.",
+      })
+    );
   }
 };
 
@@ -97,6 +164,7 @@ const createBasicWebSearchRetrieverChain=(llm:BaseChatModel)=>{
     llm,
     strParser,
     RunnableLambda.from(async (input:string)=>{
+      console.log("[SEARCH 1] Search query:", input);
       if(input=="not_needed"){
         return {query:"", docs:[]}
       }
@@ -104,15 +172,20 @@ const createBasicWebSearchRetrieverChain=(llm:BaseChatModel)=>{
         categories: ["general"],
         language: "en",
       });
+      console.log("[SEARCH 2] SearXNG returned");
+  console.log("[SEARCH 3] Result count:", res.results.length);
       // 1. Normalize SearXNG results
       const normalizedResults = normalizeSearchResults(res.results);
       console.log(`SearXNG results: ${res.results.length}`);
       console.log(`After normalization: ${normalizedResults.length}`);
+      console.log("[SEARCH 4] Normalized results:", normalizedResults);
       // 2. Remove duplicate URLs
       const uniqueResults = deduplicateSearchResults(normalizedResults);
       console.log(`After deduplication: ${uniqueResults.length}`);
+      console.log("[SEARCH 5] Unique results:", uniqueResults);
       const rankedResults = rankSearchResults(uniqueResults, 20);
       console.log(`After ranking: ${rankedResults.length}`);
+      console.log("[SEARCH 6] Ranked results:", rankedResults);
       // 3. Convert our internal SearchResult
       //    into LangChain Documents
       const documents = rankedResults.map(
@@ -128,6 +201,7 @@ const createBasicWebSearchRetrieverChain=(llm:BaseChatModel)=>{
             },
           })
       );
+      console.log("[SEARCH 7] Documents:", documents);
       return {
         query: input,
         docs: documents,
@@ -143,8 +217,11 @@ const createBasicWebSearchAnsweringChain=(llm:BaseChatModel,embeddings:Embedding
       query: string;
       docs: Document[];
     }) => {
+      console.log("[RERANK 1] Starting reranking");
+      console.log("[RERANK 2] Documents:", input.docs.length);
+      console.log("[RERANK 3] Query:", input.query);      
       return {
-        query: input.query,
+        query: input.query, 
         docs: await rerankDocs({
           query: input.query,
           docs: input.docs,
@@ -156,8 +233,14 @@ const createBasicWebSearchAnsweringChain=(llm:BaseChatModel,embeddings:Embedding
     }
   );
   const processDocs = RunnableLambda.from(
-    async (docs: Document[]) => {
-      return docs
+    async (input:{
+      query:string;
+      docs:Document[];
+    }) => {
+    console.log("[PROCESS DOCS 1] Processing documents");
+    console.log("[PROCESS DOCS 2] Query:", input.query);
+    console.log("[PROCESS DOCS 3] Documents:", input.docs);
+      return input.docs
         .map((doc, index) => {
           return [
             `[${index + 1}]`,
@@ -169,6 +252,7 @@ const createBasicWebSearchAnsweringChain=(llm:BaseChatModel,embeddings:Embedding
         .join("\n\n");
     }
   )
+  console.log("[PROCESS DOCS 3] RunnableSequence created");
   return RunnableSequence.from([
     RunnableMap.from({
       query: (input: WebSearchChainInput) => input.query,
@@ -200,6 +284,7 @@ const basicWebSearch=(
   llm:BaseChatModel,
   embeddings:Embeddings
 )=>{
+  console.log("[2] Creating event emitter");
   const event=new eventEmitter();
   try{
     const basicWebSearchAnsweringChain=createBasicWebSearchAnsweringChain(llm,embeddings)
@@ -207,6 +292,7 @@ const basicWebSearch=(
       input,
       {version:"v1"}
     )
+    console.log("[3] Stream created");
     handleStream(stream,event)
   }catch(err){
     event.emit("error",
@@ -224,6 +310,7 @@ const handleWebSearch=async (
     embeddings:Embeddings
 )=>{
   //start an event 
+  console.log("[1] Starting WebSearchAgent");
   const eventEmitter=basicWebSearch(input,llm,embeddings)
   return eventEmitter;
 }
