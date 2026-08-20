@@ -5,7 +5,7 @@ import { getSelectedChatModel } from "../modules/ai/model.selector";
 
 const imagesRouter=Router();
 
-imagesRouter.post("/search",async (req,res)=>{
+imagesRouter.post("/",async (req,res)=>{
     try{
         console.log("Images search request received:",req.body);
         let {query, chat_history}=req.body;

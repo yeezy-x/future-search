@@ -1,16 +1,11 @@
 import { ChatOpenAI, OpenAI, OpenAIEmbeddings } from "@langchain/openai";
 import { BaseMessage } from "@langchain/core/messages";
 import { RunnableSequence } from "@langchain/core/runnables";
-import {
-  ChatPromptTemplate,
-  MessagesPlaceholder,
-} from "@langchain/core/prompts";
+import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
-
 import eventEmitter from "events";
 import type { StreamEvent } from "@langchain/core/tracers/log_stream";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import type { Embeddings } from "@langchain/core/embeddings";
 
 const writingAssistantPrompt = `
 You are futuresearch, an AI model who is expert at searching the web and answering user's queries. You are currently set on focus mode 'Writing Assistant', this means you will be helping the user write a response to a given query. 
@@ -73,7 +68,6 @@ const handleStream = async (
 const handleWritingAssistant = (
   input: BasicChainInput,
   llm: BaseChatModel,
-  embeddings: Embeddings
 ) => {
   const emitter = new eventEmitter();
   try {
@@ -93,7 +87,6 @@ const handleWritingAssistant = (
       "error",
       JSON.stringify({ data: "An error has occurred please try again later" })
     );
-    console.error(err);
   }
   return emitter;
 };

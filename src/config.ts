@@ -45,13 +45,37 @@ export const getOpenRouterApiKey = (): string => {
 };
 
 export const getGoogleApiKey = (): string => {
-  const key = process.env.GOOGLE_API_KEY;
+  const key = process.env.GEMINI_API_KEY;
 
   if (!key) {
-    throw new Error("GOOGLE_API_KEY is not defined");
+    throw new Error("GEMINI_API_KEY is not defined");
   }
 
   return key;
+};
+
+export const getEmbeddingProvider = () => {
+  const provider = process.env.EMBEDDING_PROVIDER;
+
+  if (!provider) {
+    throw new Error(
+      "EMBEDDING_PROVIDER is not configured"
+    );
+  }
+
+  return provider;
+};
+
+export const getEmbeddingModel = () => {
+  const model = process.env.EMBEDDING_MODEL;
+
+  if (!model) {
+    throw new Error(
+      "EMBEDDING_MODEL is not configured"
+    );
+  }
+
+  return model;
 };
 
 export const getSimilarityMeasure = (): string => {

@@ -1,12 +1,11 @@
 import axios from "axios";
-import { getSearxngApiEndpoint } from "../../config";
 import { SearxngSearchOptions, SearxngSearchResult } from "./search.types";
 
 export class SearxngClient {
   constructor(private readonly baseUrl: string) {}      
 
   async search(query:string,options:SearxngSearchOptions){
-    const searxngURL=getSearxngApiEndpoint()
+    const searxngURL=this.baseUrl;
     const url = new URL(`${searxngURL}/search?format=json`);
     url.searchParams.set("q", query);
     if (options) {

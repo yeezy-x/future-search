@@ -5,6 +5,5 @@ export const startWebSocketServer = (
   wss: WebSocketServer
 ) => {
   wss.on("connection", handleConnection);
-
   console.log("WebSocket server initialized");
 };

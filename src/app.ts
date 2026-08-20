@@ -10,13 +10,14 @@ import { WebSocketServer } from 'ws';
 dotenv.config();
 
 const app=express();
-//create an http server
+//create an http server to handle http requests
 const server=http.createServer(app);
 
-//create a webSocket server and attach to existing http server
+//create a webSocket server and attach to the existing http server
 const wss=new WebSocketServer({server});
 
-const corsOptions:CorsOptions={ //cors options for the server
+const corsOptions:CorsOptions={ 
+    //cors options for the server to allow requests from all origins
     origin:"*"
 };
 
@@ -30,8 +31,9 @@ app.get('/api',(_,res)=>{
 
 startWebSocketServer(wss);
 
-server.listen(3000, () => {
-    console.log("HTTP + WebSocket server running on port 3000");
+const PORT=process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`HTTP + WebSocket server running on http://localhost:${PORT}`);
 });
 
 
