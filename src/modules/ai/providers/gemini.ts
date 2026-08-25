@@ -1,12 +1,8 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { getGoogleApiKey } from "../../../config";
 
-export function createGeminiModel(
-  model: string
-) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not defined");
-  }
+export function createGeminiModel(model: string) {
+  const apiKey = getGoogleApiKey();
   return new ChatGoogleGenerativeAI({
     model,
     apiKey,

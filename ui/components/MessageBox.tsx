@@ -1,17 +1,13 @@
-import { MutableRefObject, lazy, useEffect, useState } from "react";
+import { MutableRefObject, useEffect, useState } from "react";
 import { Message } from "./ChatWindow";
 import { cn } from "@/lib/utils";
 import {
   BookCopy,
   Disc3,
-  FilePen,
   Layers3,
   Plus,
-  PlusIcon,
   Share,
   StopCircle,
-  ThumbsDown,
-  VideoIcon,
   Volume2,
 } from "lucide-react";
 import MessageSources from "./MessageSources";
@@ -51,23 +47,7 @@ const MessageBox = ({
       message.sources.length > 0
     ) {
       const regex = /\[(\d+)\]/g;
-
       setSpeechMessage(message.content.replace(regex, ""));
-
-      message.suggestions = [
-        "tell me about his products at apple",
-        "tell me about this personal journey",
-      ];
-      return setParsedMessage(
-        message.content.replace(
-          regex,
-          (_, number) =>
-            `<a href="${
-              message.sources?.[number - 1]?.metadata?.url
-            }" target="_blank" className="bg-[#1C1C1C] px-1 rounded ml-1 no-underline text-xs text-white/70 relative">
-            ${number}</a>`
-        )
-      );
     }
 
     setParsedMessage(message.content);

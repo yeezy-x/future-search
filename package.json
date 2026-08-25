@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "test": "npm run test",
     "start": "node dist/app.js",
     "build": "tsc",
     "dev": "nodemon src/app.ts"

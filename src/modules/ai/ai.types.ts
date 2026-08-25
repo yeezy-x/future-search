@@ -8,5 +8,3 @@ export interface ModelConfig {
 }
 
 export type ChatModel = BaseChatModel;
-
-export type AvailableModels=Record<string, Record<string,BaseChatModel>>

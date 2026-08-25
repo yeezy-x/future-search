@@ -44,18 +44,19 @@ const createVideoSearchChain = (llm: BaseChatModel) => {
       const result = await searxngClient.search(input, {
         engines: ["youtube"],
       });
-      const videos:{thumbnail:string,iframe_src:string,title:string,url:string}[]=[];
-      result.results.forEach((result)=>{
-        if(result.thumbnail && result.iframe_src && result.title && result.url){
+      const videos: { thumbnail: string; iframe_src: string; title: string; url: string }[] = [];
+      result.results.forEach((result) => {
+        const thumbnail = result.thumbnail || result.thumbnail_src;
+        if (thumbnail && result.iframe_src && result.title && result.url) {
           videos.push({
-            thumbnail: result.thumbnail,
+            thumbnail,
             iframe_src: result.iframe_src,
             title: result.title,
             url: result.url,
           });
         }
       });
-      return videos.slice(0,10);
+      return videos.slice(0, 10);
     }),
   ]);
 };

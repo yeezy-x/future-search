@@ -6,7 +6,7 @@ import { Message } from "./ChatWindow";
 
 type Video = {
   url: string;
-  img_src: string;
+  thumbnail: string;
   title: string;
   iframe_src: string;
 };
@@ -66,7 +66,7 @@ const SearchVideos = ({
                   return {
                     type: "video-slide",
                     iframe_src: video.iframe_src,
-                    src: video.img_src,
+                    src: video.thumbnail,
                   };
                 })
               );
@@ -74,7 +74,7 @@ const SearchVideos = ({
               console.error(error);
             } finally {
               setLoading(false);
-            }            
+            }
           }}
           className="
         border border-dashed border-[#1C1C1C] hover:bg-[#1c1c1c] active:scale-95 duration-200 transition px-4 py-2 flex flex-row items-center justify-between rounded-lg text-white text-sm w-full"
@@ -111,7 +111,7 @@ const SearchVideos = ({
                       ]);
                     }}
                     key={i}
-                    src={video.img_src}
+                    src={video.thumbnail}
                     alt={video.title}
                     className="h-full w-full aspect-video object-cover rounded-lg transition duration-200 active:scale-95 cursor-zoom-in hover:scale-[1.02]"
                   />
@@ -127,7 +127,7 @@ const SearchVideos = ({
                       ]);
                     }}
                     key={i}
-                    src={video.img_src}
+                    src={video.thumbnail}
                     alt={video.title}
                     className="h-full w-full aspect-video object-cover rounded-lg transition duration-200 active:scale-95 cursor-zoom-in hover:scale-[1.02]"
                   />
@@ -142,7 +142,7 @@ const SearchVideos = ({
                   {videos.slice(3, 6).map((video, i) => (
                     <img
                       key={i}
-                      src={video.img_src}
+                      src={video.thumbnail}
                       alt={video.title}
                       className="h-6 w-12 rounded-md lg:h-3 lg:w-6 aspect-video object-cover"
                     />

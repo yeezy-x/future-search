@@ -8,10 +8,11 @@ export const getSuggestions = async (chatHistory: Message[]) => {
     },
     body: JSON.stringify({
       chat_history: chatHistory,
-      chat_model: "gemini-2.5-flash",
-      chat_model_provider: "gemini",
     }),
   });
+  if (!res.ok) {
+    return [];
+  }
   const data = (await res.json()) as { suggestions: string[] };
   return data.suggestions;
 };

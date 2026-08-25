@@ -152,7 +152,9 @@ const createBasicWebSearchRetrieverChain = (llm: BaseChatModel) => {
         docs: documents,
       };
     })
-  ]);
+  ]).withConfig({
+    runName: "FinalSearchRetriever",
+  });
 };
 
 const createBasicWebSearchAnsweringChain = (llm: BaseChatModel, embeddings: Embeddings) => {

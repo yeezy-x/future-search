@@ -1,11 +1,12 @@
 import { ChatOllama } from "@langchain/ollama";
+import { getOllamaApiEndpoint } from "../../../config";
 
 export function createOllamaModel(
   model: string
 ) {
   return new ChatOllama({
     model,
-    baseUrl:process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
+    baseUrl:getOllamaApiEndpoint(),
     temperature:0.2,
   });
 }

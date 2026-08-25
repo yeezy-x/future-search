@@ -8,6 +8,12 @@ const videosRouter = Router();
 videosRouter.post("/", async (req, res) => {
   try {
     let { query, chat_history } = req.body;
+    if (!query || typeof query !== "string") {
+      return res.status(400).json({ message: "query is required" });
+    }
+    if (!Array.isArray(chat_history)) {
+      return res.status(400).json({ message: "chat_history must be an array" });
+    }
     chat_history = chat_history.map((msg: any) => {
       if (msg.role === "user") {
         return new HumanMessage(msg.content);

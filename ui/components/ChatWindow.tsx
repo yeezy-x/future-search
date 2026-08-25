@@ -18,26 +18,29 @@ export type Message = {
 
 const useSocket = (url: string) => {
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    if (!ws) {
-      const ws = new WebSocket(url);
-      ws.onopen = () => {
-        console.log("[DEBUG] open");
-        setWs(ws);
-      };
-    }
+    const socket = new WebSocket(url);
 
-    return () => {
-      ws?.close();
+    socket.onopen = () => {
+      setWs(socket);
+      setIsConnected(true);
     };
-  }, [ws, url]);
 
-  return ws;
+    socket.onclose = () => {
+      setIsConnected(false);
+      setWs(null);
+    };
+
+    return () => socket.close();
+  }, [url]);
+
+  return { ws, isConnected };
 };
 
 const ChatWindow = () => {
-  const ws = useSocket(process.env.NEXT_PUBLIC_WS_URL!);
+  const { ws, isConnected } = useSocket(process.env.NEXT_PUBLIC_WS_URL!);
   const [chatHistory, setChatHistory] = useState<[string, string][]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
@@ -51,6 +54,7 @@ const ChatWindow = () => {
 
   const sendMessage = async (message: string) => {
     if (loading) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     setLoading(true);
     setMessageAppeared(false);
@@ -59,7 +63,7 @@ const ChatWindow = () => {
     let receivedMessage = "";
     let added = false;
 
-    ws?.send(
+    ws.send(
       JSON.stringify({
         type: "message",
         content: message,
@@ -139,12 +143,7 @@ const ChatWindow = () => {
 
         const lastMsg = messagesRef.current[messagesRef.current.length - 1];
 
-        if (
-          lastMsg.role === "assistant" &&
-          lastMsg.sources &&
-          lastMsg.sources.length > 0 &&
-          !lastMsg.suggestions
-        ) {
+        if (lastMsg.role === "assistant" && !lastMsg.suggestions) {
           const suggestions = await getSuggestions(messagesRef.current);
           setMessages((prev) =>
             prev.map((msg) => {
@@ -155,6 +154,32 @@ const ChatWindow = () => {
             })
           );
         }
+      }
+
+      if (data.type === "error") {
+        ws?.removeEventListener("message", messageHandler);
+        setLoading(false);
+        setMessageAppeared(true);
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (added && last?.role === "assistant") {
+            return prev.map((msg, i) =>
+              i === prev.length - 1
+                ? { ...msg, content: msg.content || data.data }
+                : msg
+            );
+          }
+
+          return [
+            ...prev,
+            {
+              content: data.data,
+              id: Math.random().toString(36).substring(7),
+              role: "assistant",
+              createdAt: new Date(),
+            },
+          ];
+        });
       }
     };
 
@@ -186,15 +211,19 @@ const ChatWindow = () => {
           <Navbar messages={messages} />
           <Chat
             loading={loading}
+            isConnected={isConnected}
             messages={messages}
             sendMessage={sendMessage}
             messageAppeared={messageAppeared}
             rewrite={rewrite}
+            focusMode={focusMode}
+            setFocusMode={setFocusMode}
           />
         </>
       ) : (
         <EmptyChat
           sendMessage={sendMessage}
+          isConnected={isConnected}
           focusMode={focusMode}
           setFocusMode={setFocusMode}
         />

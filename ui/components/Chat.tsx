@@ -8,16 +8,22 @@ import MessageInput from "./MessageInput";
 
 const Chat = ({
   loading,
+  isConnected,
   messages,
   sendMessage,
   messageAppeared,
   rewrite,
+  focusMode,
+  setFocusMode,
 }: {
   messages: Message[];
   sendMessage: (message: string) => void;
   loading: boolean;
   messageAppeared: boolean;
   rewrite: (messageId: string) => void;
+  isConnected: boolean;
+  focusMode: string;
+  setFocusMode: (mode: string) => void;
 }) => {
   const [dividerWidth, setDividerWidth] = useState(0);
   const dividerRef = useRef<HTMLDivElement | null>(null);
@@ -76,7 +82,13 @@ const Chat = ({
           className="bottom-24 lg:bottom-0 fixed z-40"
           style={{ width: dividerWidth }}
         >
-          <MessageInput sendMessage={sendMessage} loading={loading} />
+          <MessageInput
+            sendMessage={sendMessage}
+            loading={loading}
+            isConnected={isConnected}
+            focusMode={focusMode}
+            setFocusMode={setFocusMode}
+          />
         </div>
       )}
     </div>

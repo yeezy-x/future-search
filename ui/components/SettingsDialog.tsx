@@ -8,8 +8,6 @@ interface SettingsType {
   };
   selectedProvider: string;
   selectedChatModel: string;
-  openaiApiKey: string;
-  gropApiKey?: string;
   ollamaApiUrl: string;
 }
 
@@ -23,40 +21,71 @@ const SettingsDialog = ({
   const [config, setConfig] = useState<SettingsType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      const fetchConfig = async () => {
-        setIsLoading(true);
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/config`);
-        const data = await res.json();
-        setConfig(data);
-        setIsLoading(false);
-      };
+    if (!isOpen) return;
 
-      fetchConfig();
-    }
+    const fetchConfig = async () => {
+      setIsLoading(true);
+      setError(null);
+      setSaveError(null);
+
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/config`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message ?? `Failed to load config (${res.status})`);
+        }
+        const data = (await res.json()) as SettingsType;
+        setConfig(data);
+      } catch (err: any) {
+        console.error(err);
+        setConfig(null);
+        setError(
+          err.message ??
+            "Settings are unavailable. Configure the backend via environment variables."
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchConfig();
   }, [isOpen]);
 
-  //@ts-ignore
   const handleSubmit = async () => {
+    if (!config || error) return;
+
     setIsUpdating(true);
+    setSaveError(null);
 
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/config`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/config`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(config),
+        body: JSON.stringify({
+          selectedProvider: config.selectedProvider,
+          selectedChatModel: config.selectedChatModel,
+          ollamaApiUrl: config.ollamaApiUrl,
+        }),
       });
-    } catch (err) {
-      console.log(err);
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message ?? `Failed to save config (${res.status})`);
+      }
+
+      setIsOpen(false);
+      window.location.reload();
+    } catch (err: any) {
+      console.error(err);
+      setSaveError(err.message ?? "Failed to save settings.");
     } finally {
       setIsUpdating(false);
-      setIsOpen(false);
-
-      window.location.reload();
     }
   };
 
@@ -89,151 +118,109 @@ const SettingsDialog = ({
               leaveFrom="opacity-100 scale-200"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel
-                className={
-                  "w-full max-w-md transform rounded-2xl border border-[#1c1c1c] bg-[#111111] p-6 text-left align-middle shadow-xl transition-all"
-                }
-              >
-                <Dialog.Title
-                  className={"text-white text-xl font-medium leading-6"}
-                >
+              <Dialog.Panel className="w-full max-w-md transform rounded-2xl border border-[#1c1c1c] bg-[#111111] p-6 text-left align-middle shadow-xl transition-all">
+                <Dialog.Title className="text-white text-xl font-medium leading-6">
                   Settings
                 </Dialog.Title>
-                {config && !isLoading && (
-                  <div className="flex flex-col space-y-4 mt-6 pr-2">
-                    {config.providers && (
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-white/70 text-sm">LLM Provider</p>
-                        <select
-                          onChange={(e) =>
-                            setConfig({
-                              ...config,
-                              selectedProvider: e.target.value,
-                              selectedChatModel:
-                                config.providers[e.target.value][0],
-                            })
-                          }
-                          className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
-                        >
-                          {Object.keys(config.providers).map((provider) => (
-                            <option
-                              key={provider}
-                              value={provider}
-                              selected={provider === config.selectedProvider}
-                            >
-                              {provider.charAt(0).toUpperCase() +
-                                provider.slice(1)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    {config.selectedProvider && (
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-white/70 text-sm">Chat Model</p>
-                        <select
-                          onChange={(e) =>
-                            setConfig({
-                              ...config,
-                              selectedChatModel: e.target.value,
-                            })
-                          }
-                          className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
-                        >
-                          {config.providers[config.selectedProvider] ? (
-                            config.providers[config.selectedProvider].length >
-                            0 ? (
-                              config.providers[config.selectedProvider].map(
-                                (model) => (
-                                  <option
-                                    key={model}
-                                    value={model}
-                                    selected={
-                                      model === config.selectedChatModel
-                                    }
-                                  >
-                                    {model}
-                                  </option>
-                                )
-                              )
-                            ) : (
-                              <option value="" disabled selected>
-                                No models available
-                              </option>
-                            )
-                          ) : (
-                            <option value="" disabled selected>
-                              Invalid provider
-                            </option>
-                          )}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {config?.selectedProvider === "openai" && (
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-white/70 text-sm">OpenAI API Key</p>
-                    <input
-                      type="text"
-                      defaultValue={config.openaiApiKey}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          openaiApiKey: e.target.value,
-                        })
-                      }
-                      className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
-                    />
-                  </div>
-                )}
-                {config?.selectedProvider === "ollama" && (
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-white/70 text-sm">Ollama API URL</p>
-                    <input
-                      type="text"
-                      defaultValue={config.ollamaApiUrl}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          ollamaApiUrl: e.target.value,
-                        })
-                      }
-                      className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
-                    />
-                  </div>
-                )}
-                {config?.selectedProvider === "groq" && (
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-white/70 text-sm">GROQ API Key</p>
-                    <input
-                      type="text"
-                      defaultValue={config?.gropApiKey}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          gropApiKey: e.target.value,
-                        })
-                      }
-                      className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
-                    />
-                  </div>
-                )}
 
                 {isLoading && (
-                  <div className="w-full flex items-center justify-center mt-6  text-white/70 py-6">
+                  <div className="w-full flex items-center justify-center mt-6 text-white/70 py-6">
                     <RefreshCcw className="animate-spin" />
                   </div>
                 )}
+
+                {error && !isLoading && (
+                  <p className="text-white/70 text-sm mt-6">{error}</p>
+                )}
+
+                {config && !isLoading && !error && (
+                  <div className="flex flex-col space-y-4 mt-6 pr-2">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-white/70 text-sm">LLM Provider</p>
+                      <select
+                        value={config.selectedProvider}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            selectedProvider: e.target.value,
+                            selectedChatModel:
+                              config.providers[e.target.value]?.[0] ?? "",
+                          })
+                        }
+                        className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
+                      >
+                        {Object.keys(config.providers).map((provider) => (
+                          <option key={provider} value={provider}>
+                            {provider.charAt(0).toUpperCase() + provider.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-white/70 text-sm">Chat Model</p>
+                      <select
+                        value={config.selectedChatModel}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            selectedChatModel: e.target.value,
+                          })
+                        }
+                        className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
+                      >
+                        {(config.providers[config.selectedProvider] ?? []).map(
+                          (model) => (
+                            <option key={model} value={model}>
+                              {model}
+                            </option>
+                          )
+                        )}
+                      </select>
+                    </div>
+
+                    {config.selectedProvider === "ollama" && (
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-white/70 text-sm">Ollama API URL</p>
+                        <input
+                          type="text"
+                          value={config.ollamaApiUrl}
+                          onChange={(e) =>
+                            setConfig({
+                              ...config,
+                              ollamaApiUrl: e.target.value,
+                            })
+                          }
+                          className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
+                        />
+                      </div>
+                    )}
+
+                    {(config.selectedProvider === "openrouter" ||
+                      config.selectedProvider === "gemini") && (
+                      <p className="text-white/50 text-xs">
+                        API keys for {config.selectedProvider} are configured
+                        via server environment variables.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {saveError && (
+                  <p className="text-red-400 text-sm mt-4">{saveError}</p>
+                )}
+
                 <div className="w-full mt-6 space-y-2">
-                  <p className="text-xs text-white/50">
-                    we&apos;ll refresh the page after updating the settings.
-                  </p>
+                  {config && !error && (
+                    <p className="text-xs text-white/50">
+                      We&apos;ll refresh the page after updating the settings.
+                      Changes apply to new connections until server restart.
+                    </p>
+                  )}
                   <button
                     onClick={handleSubmit}
-                    disabled={isLoading || isUpdating}
-                    className="
-                  bg-[#24A0ED] flex flex-row items-center space-x-2 text-white disabled:text-white/50 hover:bg-opacity-85 transition duration-100 disabled:bg-[#ececec21] rounded-full px-4 py-2"
+                    disabled={isLoading || isUpdating || !config || !!error}
+                    className="bg-[#24A0ED] flex flex-row items-center space-x-2 text-white disabled:text-white/50 hover:bg-opacity-85 transition duration-100 disabled:bg-[#ececec21] rounded-full px-4 py-2"
                   >
                     {isUpdating ? (
                       <RefreshCcw size={20} className="animate-spin" />

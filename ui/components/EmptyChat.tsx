@@ -4,10 +4,12 @@ const EmptyChat = ({
   sendMessage,
   focusMode,
   setFocusMode,
+  isConnected,
 }: {
   sendMessage: (message: string) => void;
   focusMode: string;
   setFocusMode: (mode: string) => void;
+  isConnected: boolean;
 }) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen max-w-screen mx-auto p-2 space-y-8">
@@ -18,6 +20,7 @@ const EmptyChat = ({
         sendMessage={sendMessage}
         focusMode={focusMode}
         setFocusMode={setFocusMode}
+        isConnected={isConnected}
       />
     </div>
   );

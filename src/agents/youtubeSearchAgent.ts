@@ -146,7 +146,9 @@ const createBasicYoutubeSearchRetrieverChain = (llm: BaseChatModel) => {
         docs: documents,
       };
     }),
-  ]);
+  ]).withConfig({
+    runName: "FinalSearchRetriever",
+  });
 };
 
 const createBasicYoutubeSearchAnsweringChain = (
