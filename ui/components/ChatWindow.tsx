@@ -18,6 +18,7 @@ export type Message = {
 
 const useSocket = (url: string) => {
   const [ws, setWs] = useState<WebSocket | null>(null);
+
   useEffect(() => {
     if (!ws) {
       const ws = new WebSocket(url);
@@ -26,10 +27,12 @@ const useSocket = (url: string) => {
         setWs(ws);
       };
     }
+
     return () => {
       ws?.close();
     };
   }, [ws, url]);
+
   return ws;
 };
 

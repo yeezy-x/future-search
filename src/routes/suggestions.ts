@@ -5,7 +5,7 @@ import { getSelectedChatModel } from "../modules/ai/model.selector";
 
 const suggestionsRouter = Router();
 
-suggestionsRouter.post("/suggest", async (req, res) => {
+suggestionsRouter.post("/", async (req, res) => {
   try {
     const { chat_history } = req.body;
 
@@ -18,39 +18,19 @@ suggestionsRouter.post("/suggest", async (req, res) => {
         }
       }
     );
-
-    console.log(
-      "Formatted chat history:",
-      formattedChatHistory
-    );
-
     const llm = await getSelectedChatModel();
-
     const suggestions = await generateSuggestions(
       {
         chat_history: formattedChatHistory,
       },
       llm
     );
-
-    console.log(
-      "Suggestions:",
-      suggestions
-    );
-
     res.status(200).json({
       suggestions,
     });
-
   } catch (err: any) {
-    console.error(
-      "[SUGGESTIONS ERROR]",
-      err
-    );
-
-    res.status(500).json({
-      message: `An error has occurred: ${err.message}`,
-    });
+    console.error("[SUGGESTIONS ERROR]",err);
+    res.status(500).json({message: `An error has occurred: ${err.message}`});
   }
 });
 

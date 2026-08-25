@@ -14,24 +14,17 @@ type VideoSearchInput = {
 
 const videoSearchPrompt = `
 You will be given a conversation below and a follow up question. You need to rephrase the follow-up question so it is a standalone question that can be used by the LLM to search Youtube for videos.
-
 You need to make sure the rephrased question agrees with the conversation and is relevant to the conversation.
-
 Example:
 1. Follow up question: How does a car work?
 Rephrased: How does a car work?
-
 2. Follow up question: What is the theory of relativity?
 Rephrased: What is theory of relativity
-
 3. Follow up question: How does an AC work?
 Rephrased: How does an AC work
-
 Conversation:
 {chat_history}
-
 Follow up question: {query}
-
 Rephrased question:
 `;
 
@@ -51,7 +44,18 @@ const createVideoSearchChain = (llm: BaseChatModel) => {
       const result = await searxngClient.search(input, {
         engines: ["youtube"],
       });
-      return result.results;
+      const videos:{thumbnail:string,iframe_src:string,title:string,url:string}[]=[];
+      result.results.forEach((result)=>{
+        if(result.thumbnail && result.iframe_src && result.title && result.url){
+          videos.push({
+            thumbnail: result.thumbnail,
+            iframe_src: result.iframe_src,
+            title: result.title,
+            url: result.url,
+          });
+        }
+      });
+      return videos.slice(0,10);
     }),
   ]);
 };

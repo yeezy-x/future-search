@@ -60,7 +60,7 @@ const createImageSearchChain = (llm: BaseChatModel) => {
       });
       
       const images: { img_src: string, url: string, title: string }[] = [];
-      
+  
       res.results.forEach((result) => {
         if (result.img_src && result.url && result.title) {
           images.push({

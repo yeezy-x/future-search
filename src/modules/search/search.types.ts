@@ -27,3 +27,4 @@ export interface SearchResult {
   score?: number;
   publishedAt?: string;
 }
+

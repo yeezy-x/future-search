@@ -40,36 +40,41 @@ const SearchVideos = ({
       {!loading && videos === null && (
         <button
           onClick={async () => {
-            setLoading(true);
-            const res = await fetch(
-              `${process.env.NEXT_PUBLIC_API_URL}/videos`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-type": "application/json",
-                },
-                body: JSON.stringify({
-                  query: query,
-                  chat_history: chat_history,
-                }),
+            try {
+              setLoading(true);
+              const res = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL}/videos`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    query: query,
+                    chat_history: chat_history,
+                  }),
+                }
+              );
+              if (!res.ok) {
+                throw new Error("Failed to fetch videos");
               }
-            );
-
-            const data = await res.json();
-
-            const videos = data.videos;
-            setVideos(videos);
-
-            setSlides(
-              videos.map((video: Video) => {
-                return {
-                  type: "video-slide",
-                  iframe_src: video.iframe_src,
-                  src: video.img_src,
-                };
-              })
-            );
-            setLoading(false);
+              const data = await res.json();
+              const videos = data.videos;
+              setVideos(videos);
+              setSlides(
+                videos.map((video: Video) => {
+                  return {
+                    type: "video-slide",
+                    iframe_src: video.iframe_src,
+                    src: video.img_src,
+                  };
+                })
+              );
+            } catch (error) {
+              console.error(error);
+            } finally {
+              setLoading(false);
+            }            
           }}
           className="
         border border-dashed border-[#1C1C1C] hover:bg-[#1c1c1c] active:scale-95 duration-200 transition px-4 py-2 flex flex-row items-center justify-between rounded-lg text-white text-sm w-full"
