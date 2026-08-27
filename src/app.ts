@@ -14,7 +14,8 @@ const app=express();
 const server=http.createServer(app);
 
 //create a webSocket server and attach to the existing http server
-const wss=new WebSocketServer({server});
+const wsPath = process.env.WS_PATH || "/";
+const wss = new WebSocketServer({ server, path: wsPath });
 
 const corsOptions:CorsOptions={ 
     //cors options for the server to allow requests from all origins

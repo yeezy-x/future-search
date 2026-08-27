@@ -152,6 +152,90 @@ Models are filtered by which API keys are configured:
 
 Change the active model in the UI settings dialog or via `SELECTED_MODEL_ID` in `.env`.
 
+## Production deployment (Docker)
+
+Deploy the full stack — frontend, backend, SearXNG, Ollama, and nginx — with a single command.
+
+### 1. Configure production environment
+
+```bash
+cp .env.production.example .env.production
+```
+
+Edit `.env.production` and add at least one API key (`OPENROUTER_API_KEY` or `GEMINI_API_KEY`).
+
+For a VPS with a domain, update the public URLs:
+
+```env
+APP_PORT=80
+NEXT_PUBLIC_API_URL=https://yourdomain.com/api
+NEXT_PUBLIC_WS_URL=wss://yourdomain.com/ws
+```
+
+### 2. Deploy
+
+```bash
+chmod +x scripts/deploy.sh scripts/ollama-init.sh
+./scripts/deploy.sh
+```
+
+Or manually:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production up --build -d
+```
+
+Open [http://localhost](http://localhost) (or your domain).
+
+### Production architecture
+
+```
+Browser
+   │
+   ▼
+nginx (:80)
+   ├── /        → frontend (Next.js)
+   ├── /api     → backend (Express REST)
+   └── /ws      → backend (WebSocket)
+                      ├── searxng (:8080)
+                      └── ollama (:11434)
+```
+
+### Useful commands
+
+| Command | Description |
+|---------|-------------|
+| `./scripts/deploy.sh` | Build and start all services |
+| `docker compose -f docker-compose.prod.yml logs -f` | Tail logs |
+| `docker compose -f docker-compose.prod.yml ps` | Service status |
+| `docker compose -f docker-compose.prod.yml down` | Stop and remove containers |
+| `docker compose -f docker-compose.prod.yml down -v` | Stop and remove volumes (including Ollama models) |
+
+The `ollama-init` service automatically pulls the embedding model on first deploy. Subsequent deploys skip re-pulling if the model is already cached in the `ollama_data` volume.
+
+## Vercel deployment (frontend only)
+
+Only the Next.js UI (`ui/`) can run on Vercel. The backend (Express + WebSocket + Ollama + SearXNG) must stay on Docker or a VPS with a **public URL**.
+
+### Deploy frontend
+
+```bash
+cd ui
+vercel link
+vercel env add NEXT_PUBLIC_API_URL production --no-sensitive   # e.g. https://api.yourdomain.com/api
+vercel env add NEXT_PUBLIC_WS_URL production --no-sensitive    # e.g. wss://api.yourdomain.com/ws
+vercel deploy --prod
+```
+
+### Required Vercel env vars
+
+| Variable | Example |
+|----------|---------|
+| `NEXT_PUBLIC_API_URL` | `https://api.yourdomain.com/api` |
+| `NEXT_PUBLIC_WS_URL` | `wss://api.yourdomain.com/ws` |
+
+`localhost` will not work — browsers load the Vercel site from the internet and must reach your backend over a public HTTPS/WSS endpoint.
+
 ## Project structure
 
 ```
@@ -166,6 +250,9 @@ future-search/
 │   ├── app/              # App Router pages
 │   ├── components/       # React components
 │   └── lib/              # Client utilities and session storage
-├── docker-compose.yml    # SearXNG service
-└── searxng-settings.yml  # SearXNG configuration
+├── docker-compose.yml        # SearXNG only (local dev)
+├── docker-compose.prod.yml   # Full production stack
+├── nginx/nginx.conf          # Reverse proxy config
+├── scripts/deploy.sh         # Production deploy script
+└── searxng-settings.yml      # SearXNG configuration
 ```
