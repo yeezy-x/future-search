@@ -3,4 +3,6 @@ config.toml
 node_modules
 .next
 .env
+.env*
+!.env.example
 dist/
