@@ -13,9 +13,7 @@ const app=express();
 const server=http.createServer(app);
 
 const wss=new WebSocketServer({server});
-const corsOptions:CorsOptions={ 
-    origin:"*"
-};
+const corsOptions:CorsOptions={ origin:"*"};
 
 app.use(cors(corsOptions));
 app.use(express.json());
