@@ -1,11 +1,20 @@
 "use client";
 
-import { Document } from "@langchain//core/documents";
-import { useEffect, useRef, useState } from "react";
+import { Document } from "@langchain/core/documents";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import EmptyChat from "./EmptyChat";
 import Chat from "./Chat";
 import Navbar from "./Navbar";
 import { getSuggestions } from "@/lib/actions";
+import { useAppShell } from "@/context/AppShellContext";
+import {
+  deriveTitle,
+  documentsToStored,
+  loadSessions,
+  storedToDocuments,
+  StoredMessage,
+} from "@/lib/chatSessions";
 
 export type Message = {
   id: string;
@@ -16,48 +25,172 @@ export type Message = {
   sources?: Document[];
 };
 
+const toMessage = (stored: StoredMessage): Message => ({
+  id: stored.id,
+  createdAt: new Date(stored.createdAt),
+  content: stored.content,
+  role: stored.role,
+  suggestions: stored.suggestions,
+  sources: storedToDocuments(stored.sources),
+});
+
+const toStored = (message: Message): StoredMessage => ({
+  id: message.id,
+  createdAt: message.createdAt.toISOString(),
+  content: message.content,
+  role: message.role,
+  suggestions: message.suggestions,
+  sources: documentsToStored(message.sources),
+});
+
 const useSocket = (url: string) => {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const socket = new WebSocket(url);
+    let socket: WebSocket;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
+    let closed = false;
 
-    socket.onopen = () => {
-      setWs(socket);
-      setIsConnected(true);
+    const connect = () => {
+      socket = new WebSocket(url);
+
+      socket.onopen = () => {
+        setWs(socket);
+        setIsConnected(true);
+      };
+
+      socket.onclose = () => {
+        setIsConnected(false);
+        setWs(null);
+        if (!closed) {
+          reconnectTimer = setTimeout(connect, 2000);
+        }
+      };
     };
 
-    socket.onclose = () => {
-      setIsConnected(false);
-      setWs(null);
-    };
+    connect();
 
-    return () => socket.close();
+    return () => {
+      closed = true;
+      clearTimeout(reconnectTimer);
+      socket?.close();
+    };
   }, [url]);
 
   return { ws, isConnected };
 };
 
-const ChatWindow = () => {
+const ChatWindow = ({ sessionId }: { sessionId?: string }) => {
+  const router = useRouter();
+  const { createSession, updateSession, deleteSession } = useAppShell();
   const { ws, isConnected } = useSocket(process.env.NEXT_PUBLIC_WS_URL!);
+
+  const [activeSessionId, setActiveSessionId] = useState<string | undefined>(
+    sessionId
+  );
   const [chatHistory, setChatHistory] = useState<[string, string][]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [messageAppeared, setMessageAppeared] = useState(false);
   const [focusMode, setFocusMode] = useState("webSearch");
+  const [copilotEnabled, setCopilotEnabled] = useState(false);
+  const [sessionTitle, setSessionTitle] = useState("New chat");
+  const [hydrated, setHydrated] = useState(!sessionId);
 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
 
-  const sendMessage = async (message: string) => {
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const session = loadSessions().find((s) => s.id === sessionId);
+    if (!session) {
+      router.replace("/");
+      return;
+    }
+
+    queueMicrotask(() => {
+      setActiveSessionId(sessionId);
+      setMessages(session.messages.map(toMessage));
+      setChatHistory(session.chatHistory);
+      setFocusMode(session.focusMode);
+      setCopilotEnabled(session.copilotEnabled);
+      setSessionTitle(session.title);
+      setHydrated(true);
+    });
+  }, [sessionId, router]);
+
+  const persistSession = useCallback(
+    (id: string) => {
+      const storedMessages = messagesRef.current.map(toStored);
+      const firstUser = storedMessages.find((m) => m.role === "user");
+      const title =
+        firstUser?.content ? deriveTitle(firstUser.content) : "New chat";
+
+      updateSession(id, {
+        messages: storedMessages,
+        chatHistory,
+        focusMode,
+        copilotEnabled,
+        title,
+      });
+      setSessionTitle(title);
+    },
+    [chatHistory, focusMode, copilotEnabled, updateSession]
+  );
+
+  useEffect(() => {
+    if (!activeSessionId || !hydrated || loading) return;
+    persistSession(activeSessionId);
+  }, [
+    messages,
+    chatHistory,
+    focusMode,
+    copilotEnabled,
+    activeSessionId,
+    hydrated,
+    loading,
+    persistSession,
+  ]);
+
+  const clearChat = () => {
     if (loading) return;
+    if (activeSessionId) {
+      deleteSession(activeSessionId);
+      router.push("/");
+      return;
+    }
+    setMessages([]);
+    setChatHistory([]);
+    setSessionTitle("New chat");
+    document.title = "Future Search - Chat with the internet";
+  };
+
+  const sendMessage = async (message: string) => {
+    const trimmed = message.trim();
+    if (!trimmed || loading) return;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    let currentSessionId = activeSessionId;
+
+    if (!currentSessionId) {
+      const session = createSession();
+      currentSessionId = session.id;
+      setActiveSessionId(session.id);
+      router.replace(`/c/${session.id}`);
+    }
 
     setLoading(true);
     setMessageAppeared(false);
+
+    if (messages.length === 0) {
+      const title = deriveTitle(trimmed);
+      setSessionTitle(title);
+      document.title = `${title} - Future Search`;
+    }
 
     let sources: Document[] | undefined = undefined;
     let receivedMessage = "";
@@ -66,16 +199,17 @@ const ChatWindow = () => {
     ws.send(
       JSON.stringify({
         type: "message",
-        content: message,
+        content: trimmed,
         focusMode: focusMode,
-        history: [...chatHistory, ["human", message]],
+        copilot: copilotEnabled ? "enabled" : "disabled",
+        history: [...chatHistory, ["human", trimmed]],
       })
     );
 
     setMessages((prevMessages) => [
       ...prevMessages,
       {
-        content: message,
+        content: trimmed,
         id: Math.random().toString(36).substring(7),
         role: "user",
         createdAt: new Date(),
@@ -120,11 +254,11 @@ const ChatWindow = () => {
         }
 
         setMessages((prev) =>
-          prev.map((message) => {
-            if (message.id === data.messageId) {
-              return { ...message, content: message.content + data.data };
+          prev.map((msg) => {
+            if (msg.id === data.messageId) {
+              return { ...msg, content: msg.content + data.data };
             }
-            return message;
+            return msg;
           })
         );
 
@@ -135,7 +269,7 @@ const ChatWindow = () => {
       if (data.type === "messageEnd") {
         setChatHistory((prevHistory) => [
           ...prevHistory,
-          ["human", message],
+          ["human", trimmed],
           ["assistant", receivedMessage],
         ]);
         ws?.removeEventListener("message", messageHandler);
@@ -189,26 +323,29 @@ const ChatWindow = () => {
   const rewrite = (messageId: string) => {
     const index = messages.findIndex((msg) => msg.id === messageId);
 
-    if (index === -1) return;
+    if (index <= 0 || messages[index - 1]?.role !== "user") return;
 
-    const message = messages[index - 1];
+    const userMessage = messages[index - 1];
 
-    setMessages((prev) => {
-      return [...prev.slice(0, messages.length > 2 ? index - 1 : 0)];
-    });
+    setMessages((prev) => prev.slice(0, index - 1));
+    setChatHistory((prev) => prev.slice(0, index - 1));
 
-    setChatHistory((prev) => {
-      return [...prev.slice(0, messages.length > 2 ? index - 1 : 0)];
-    });
-
-    sendMessage(message.content);
+    sendMessage(userMessage.content);
   };
+
+  if (!hydrated) {
+    return null;
+  }
 
   return (
     <div>
       {messages.length > 0 ? (
         <>
-          <Navbar messages={messages} />
+          <Navbar
+            title={sessionTitle}
+            messages={messages}
+            onClearChat={clearChat}
+          />
           <Chat
             loading={loading}
             isConnected={isConnected}
@@ -218,6 +355,8 @@ const ChatWindow = () => {
             rewrite={rewrite}
             focusMode={focusMode}
             setFocusMode={setFocusMode}
+            copilotEnabled={copilotEnabled}
+            setCopilotEnabled={setCopilotEnabled}
           />
         </>
       ) : (
@@ -226,6 +365,8 @@ const ChatWindow = () => {
           isConnected={isConnected}
           focusMode={focusMode}
           setFocusMode={setFocusMode}
+          copilotEnabled={copilotEnabled}
+          setCopilotEnabled={setCopilotEnabled}
         />
       )}
     </div>

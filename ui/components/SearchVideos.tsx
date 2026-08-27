@@ -1,4 +1,4 @@
-import { ImagesIcon, PlusIcon, VideoIcon } from "lucide-react";
+import { PlusIcon, VideoIcon } from "lucide-react";
 import { useState } from "react";
 import Lightbox, { GenericSlide } from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
@@ -33,12 +33,15 @@ const SearchVideos = ({
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [slides, setSlides] = useState<any[]>([]);
+  const [slides, setSlides] = useState<
+    Array<{ type: "video-slide"; src: string; iframe_src: string }>
+  >([]);
 
   return (
     <>
       {!loading && videos === null && (
         <button
+          type="button"
           onClick={async () => {
             try {
               setLoading(true);
@@ -56,28 +59,35 @@ const SearchVideos = ({
                 }
               );
               if (!res.ok) {
-                throw new Error("Failed to fetch videos");
+                const body = await res.json().catch(() => ({}));
+                throw new Error(
+                  body.message ??
+                    body.error ??
+                    `Failed to fetch videos (${res.status})`
+                );
               }
               const data = await res.json();
-              const videos = data.videos;
-              setVideos(videos);
+              const fetchedVideos = data.videos as Video[];
+              setVideos(fetchedVideos);
               setSlides(
-                videos.map((video: Video) => {
-                  return {
-                    type: "video-slide",
-                    iframe_src: video.iframe_src,
-                    src: video.thumbnail,
-                  };
-                })
+                fetchedVideos.map((video) => ({
+                  type: "video-slide" as const,
+                  iframe_src: video.iframe_src,
+                  src: video.thumbnail,
+                }))
               );
             } catch (error) {
               console.error(error);
+              alert(
+                error instanceof Error
+                  ? error.message
+                  : "Failed to fetch videos"
+              );
             } finally {
               setLoading(false);
             }
           }}
-          className="
-        border border-dashed border-[#1C1C1C] hover:bg-[#1c1c1c] active:scale-95 duration-200 transition px-4 py-2 flex flex-row items-center justify-between rounded-lg text-white text-sm w-full"
+          className="border border-dashed border-[#1C1C1C] hover:bg-[#1c1c1c] active:scale-95 duration-200 transition px-4 py-2 flex flex-row items-center justify-between rounded-lg text-white text-sm w-full"
         >
           <div className="flex flex-row items-center space-x-2">
             <VideoIcon size={17} />
@@ -134,9 +144,9 @@ const SearchVideos = ({
                 ))}
             {videos.length > 4 && (
               <button
+                type="button"
                 onClick={() => setOpen(true)}
-                className="
-              bg-[#111111] hover:bg-[#1c1c1c] transition duration-200 active:scale-95 h-auto w-full rounded-lg flex flex-col justify-between text-white p-2 hover:scale-[1.02]"
+                className="bg-[#111111] hover:bg-[#1c1c1c] transition duration-200 active:scale-95 h-auto w-full rounded-lg flex flex-col justify-between text-white p-2 hover:scale-[1.02]"
               >
                 <div className="flex flex-row items-center space-x-1">
                   {videos.slice(3, 6).map((video, i) => (

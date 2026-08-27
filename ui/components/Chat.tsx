@@ -1,10 +1,12 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import { Message } from "./ChatWindow";
 import MessageBox from "./MessageBox";
 import MessageBoxLoading from "./MessageBoxLoading";
-import MessageInput from "./MessageInput";
+import ChatBar from "./ChatBar";
+import { useAppShell } from "@/context/AppShellContext";
+import { cn } from "@/lib/utils";
 
 const Chat = ({
   loading,
@@ -15,6 +17,8 @@ const Chat = ({
   rewrite,
   focusMode,
   setFocusMode,
+  copilotEnabled,
+  setCopilotEnabled,
 }: {
   messages: Message[];
   sendMessage: (message: string) => void;
@@ -24,37 +28,22 @@ const Chat = ({
   isConnected: boolean;
   focusMode: string;
   setFocusMode: (mode: string) => void;
+  copilotEnabled: boolean;
+  setCopilotEnabled: (enabled: boolean) => void;
 }) => {
-  const [dividerWidth, setDividerWidth] = useState(0);
-  const dividerRef = useRef<HTMLDivElement | null>(null);
+  const { sidebarOpen } = useAppShell();
   const messageEnd = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const updateDividerWidth = () => {
-      if (dividerRef.current) {
-        setDividerWidth(dividerRef.current.scrollWidth);
-      }
-    };
-
-    updateDividerWidth();
-
-    window.addEventListener("resize", updateDividerWidth);
-
-    return () => {
-      window.removeEventListener("resize", updateDividerWidth);
-    };
-  });
 
   useEffect(() => {
     messageEnd.current?.scrollIntoView({ behavior: "smooth" });
 
     if (messages.length === 1) {
-      document.title = `${messages[0].content.substring(0, 30)} - FutureSearch`;
+      document.title = `${messages[0].content.substring(0, 30)} - Future Search`;
     }
   }, [messages]);
 
   return (
-    <div className="flex flex-col space-y-6 pt-8 pb-44 lg:pb-32 sm:mx-4 md:mx-8">
+    <div className="flex flex-col space-y-6 pt-4 pb-36">
       {messages.map((msg, i) => {
         const isLast = i === messages.length - 1;
         return (
@@ -63,7 +52,6 @@ const Chat = ({
               message={msg}
               history={messages}
               loading={loading}
-              dividerRef={isLast ? dividerRef : undefined}
               isLast={isLast}
               rewrite={rewrite}
               messageIndex={i}
@@ -77,20 +65,27 @@ const Chat = ({
       })}
       {loading && !messageAppeared && <MessageBoxLoading />}
       <div ref={messageEnd} className="h-0" />
-      {dividerWidth > 0 && (
-        <div
-          className="bottom-24 lg:bottom-0 fixed z-40"
-          style={{ width: dividerWidth }}
-        >
-          <MessageInput
+
+      <div
+        className={cn(
+          "fixed bottom-6 z-40 right-0 px-4 lg:px-8 transition-[left] duration-200",
+          sidebarOpen ? "left-0 lg:left-[280px]" : "left-0"
+        )}
+      >
+        <div className="mx-auto max-w-3xl w-full">
+          <ChatBar
             sendMessage={sendMessage}
             loading={loading}
             isConnected={isConnected}
             focusMode={focusMode}
             setFocusMode={setFocusMode}
+            copilotEnabled={copilotEnabled}
+            setCopilotEnabled={setCopilotEnabled}
+            placeholder="Ask a follow up..."
+            minRows={1}
           />
         </div>
-      )}
+      </div>
     </div>
   );
 };

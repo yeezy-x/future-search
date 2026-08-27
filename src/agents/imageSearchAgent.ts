@@ -1,7 +1,7 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { RunnableLambda, RunnableMap, RunnableSequence } from "@langchain/core/runnables";
+import { RunnableMap, RunnableSequence } from "@langchain/core/runnables";
 import { getSearxngApiEndpoint } from "../config";
 import { SearxngClient } from "../modules/search/searxng.client";
 import type { BaseMessage } from "@langchain/core/messages";
@@ -31,6 +31,12 @@ type ImageSearchChainInput = {
   query: string;
 };
 
+type ImageResult = {
+  img_src: string;
+  url: string;
+  title: string;
+};
+
 const formatChatHistoryAsString = (history: BaseMessage[]) => {
   return history
     .map((message) => `${message._getType()}: ${message.content}`)
@@ -40,7 +46,28 @@ const formatChatHistoryAsString = (history: BaseMessage[]) => {
 const strParser = new StringOutputParser();
 const searxngClient = new SearxngClient(getSearxngApiEndpoint());
 
-const createImageSearchChain = (llm: BaseChatModel) => {
+const searchImages = async (searchQuery: string): Promise<ImageResult[]> => {
+  const res = await searxngClient.search(searchQuery, {
+    categories: ["images"],
+    engines: ["bing images", "google images"],
+  });
+
+  const images: ImageResult[] = [];
+
+  res.results.forEach((result) => {
+    if (result.img_src && result.url && result.title) {
+      images.push({
+        img_src: result.img_src,
+        url: result.url,
+        title: result.title,
+      });
+    }
+  });
+
+  return images.slice(0, 10);
+};
+
+const createRephraseChain = (llm: BaseChatModel) => {
   return RunnableSequence.from([
     RunnableMap.from({
       chat_history: (input: ImageSearchChainInput) => {
@@ -48,40 +75,32 @@ const createImageSearchChain = (llm: BaseChatModel) => {
       },
       query: (input: ImageSearchChainInput) => {
         return input.query;
-      }
+      },
     }),
     PromptTemplate.fromTemplate(imageSearchChainPrompt),
     llm,
     strParser,
-    RunnableLambda.from(async (input: string) => {
-      const res = await searxngClient.search(input, {
-        categories: ["images"],
-        engines: ["bing images", "google images"]
-      });
-      
-      const images: { img_src: string, url: string, title: string }[] = [];
-  
-      res.results.forEach((result) => {
-        if (result.img_src && result.url && result.title) {
-          images.push({
-            img_src: result.img_src,
-            url: result.url,
-            title: result.title,
-          });
-        }
-      });
-      
-      return images.slice(0, 10);
-    })
   ]);
 };
 
-const handleImageSearch = (
+const handleImageSearch = async (
   input: ImageSearchChainInput,
   llm: BaseChatModel
-) => {
-  const imageSearchChain = createImageSearchChain(llm);
-  return imageSearchChain.invoke(input);
+): Promise<ImageResult[]> => {
+  let searchQuery = input.query.trim();
+
+  try {
+    const rephraseChain = createRephraseChain(llm);
+    const rephrased = (await rephraseChain.invoke(input)).trim();
+    if (rephrased) searchQuery = rephrased;
+  } catch (err) {
+    console.warn(
+      "[IMAGE SEARCH] LLM rephrase failed, using original query:",
+      err instanceof Error ? err.message : err
+    );
+  }
+
+  return searchImages(searchQuery);
 };
 
 export default handleImageSearch;

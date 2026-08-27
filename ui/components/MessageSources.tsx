@@ -1,13 +1,6 @@
 import { Document } from "@langchain/core/documents";
 import { Fragment, useState } from "react";
-import {
-  Button,
-  Dialog,
-  DialogPanel,
-  DialogTitle,
-  Transition,
-  TransitionChild,
-} from "@headlessui/react";
+import { Dialog, Transition } from "@headlessui/react";
 
 const MessageSources = ({ sources }: { sources: Document[] }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -22,7 +15,7 @@ const MessageSources = ({ sources }: { sources: Document[] }) => {
     document.body.classList.add("overflow-hidden-scrollable");
   }
   return (
-    <div className="grid gridc-cols-2 lg:grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
       {sources.slice(0, 3).map((source, i) => (
         <a
           href={source.metadata.url}

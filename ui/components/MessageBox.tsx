@@ -1,4 +1,4 @@
-import { MutableRefObject, useEffect, useState } from "react";
+import { useMemo } from "react";
 import { Message } from "./ChatWindow";
 import { cn } from "@/lib/utils";
 import {
@@ -23,7 +23,6 @@ const MessageBox = ({
   messageIndex,
   history,
   loading,
-  dividerRef,
   isLast,
   rewrite,
   sendMessage,
@@ -32,28 +31,37 @@ const MessageBox = ({
   messageIndex: number;
   history: Message[];
   loading: boolean;
-  dividerRef?: MutableRefObject<HTMLDivElement | null>;
   isLast: boolean;
   rewrite: (messageId: string) => void;
   sendMessage: (message: string) => void;
 }) => {
-  const [parsedMessage, setParsedMessage] = useState(message.content);
-  const [speechMessage, setSpeechMessage] = useState(message.content);
+  const userQuery = history[messageIndex - 1]?.content ?? "";
 
-  useEffect(() => {
+  const speechMessage = useMemo(() => {
     if (
       message.role === "assistant" &&
-      message?.sources &&
+      message.sources &&
       message.sources.length > 0
     ) {
-      const regex = /\[(\d+)\]/g;
-      setSpeechMessage(message.content.replace(regex, ""));
+      return message.content.replace(/\[(\d+)\]/g, "");
     }
-
-    setParsedMessage(message.content);
+    return message.content;
   }, [message.content, message.sources, message.role]);
 
   const { speechStatus, start, stop } = useSpeech({ text: speechMessage });
+
+  const handleShareAnswer = async () => {
+    const text = message.content;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Future Search answer", text });
+      } catch {
+        // User cancelled or share failed
+      }
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+  };
 
   return (
     <div>
@@ -67,10 +75,7 @@ const MessageBox = ({
 
       {message.role === "assistant" && (
         <div className="flex flex-col space-y-9 lg:space-y-0 lg:flex-row lg:justify-between lg:space-x-9">
-          <div
-            ref={dividerRef}
-            className="flex flex-col space-y-6 w-full lg:w-9/12"
-          >
+          <div className="flex flex-col space-y-6 w-full lg:w-9/12">
             {message.sources && message.sources.length > 0 && (
               <div className="flex flex-col space-y-2">
                 <div className="flex flex-row items-center space-x-2">
@@ -92,12 +97,17 @@ const MessageBox = ({
                 <h3 className="text-white font-medium text-xl">Answer</h3>
               </div>
               <Markdown className="prose max-w-none break-words prose-invert prose-p:leading-relaxed prose-pre:p-0 text-white text-sm md:text-base font-medium">
-                {parsedMessage}
+                {message.content}
               </Markdown>
               {!loading && (
                 <div className="flex flex-row items-center justify-between w-full text-white py-4 -mx-2">
                   <div className="flex flex-row items-center space-x-1">
-                    <button className="p-2 text-white/70 rounded-xl hover:bg-[#1c1c1c] transition duration-200 hover:text-white">
+                    <button
+                      type="button"
+                      aria-label="Share answer"
+                      onClick={handleShareAnswer}
+                      className="p-2 text-white/70 rounded-xl hover:bg-[#1c1c1c] transition duration-200 hover:text-white"
+                    >
                       <Share size={18} />
                     </button>
                     <Rewrite rewrite={rewrite} messageId={message.id} />
@@ -105,6 +115,7 @@ const MessageBox = ({
                   <div className="flex flex-row items-center space-x-1">
                     <Copy initialMessage={message.content} message={message} />
                     <button
+                      type="button"
                       onClick={() => {
                         if (speechStatus === "started") {
                           stop();
@@ -142,15 +153,16 @@ const MessageBox = ({
                             className="flex flex-col space-y-3 text-sm"
                           >
                             <div className="h-px w-full bg-[#1C1C1C]" />
-                            <div
+                            <button
+                              type="button"
                               onClick={() => sendMessage(suggestion)}
-                              className="cursor-pointer flex flex-row justify-between font-medium space-x-2 items-center"
+                              className="cursor-pointer flex flex-row justify-between font-medium space-x-2 items-center w-full text-left"
                             >
                               <p className="hover:text-[#24A0ED] transition duration-200">
                                 {suggestion}
                               </p>
                               <Plus size={20} className="text-[#24A0ED]" />
-                            </div>
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -161,12 +173,12 @@ const MessageBox = ({
           </div>
           <div className="lg:sticky lg:top-20 flex flex-col items-center space-y-3 w-full lg:w-3/12 z-30 h-full pb-4">
             <SearchImages
-              query={history[messageIndex - 1].content}
-              chat_history={history.slice(0, messageIndex - 1)}
+              query={userQuery}
+              chat_history={history.slice(0, messageIndex)}
             />
             <SearchVideos
-              chat_history={history.slice(0, messageIndex - 1)}
-              query={history[messageIndex - 1].content}
+              query={userQuery}
+              chat_history={history.slice(0, messageIndex)}
             />
           </div>
         </div>

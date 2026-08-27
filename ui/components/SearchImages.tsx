@@ -20,7 +20,7 @@ const SearchImages = ({
   const [images, setImages] = useState<Image[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [slides, setSlides] = useState<any[]>([]);
+  const [slides, setSlides] = useState<{ src: string }[]>([]);
 
   return (
     <>
@@ -43,7 +43,10 @@ const SearchImages = ({
                 }
               );
               if (!res.ok) {
-                throw new Error("Failed to fetch images");
+                const body = await res.json().catch(() => ({}));
+                throw new Error(
+                  body.message ?? body.error ?? `Failed to fetch images (${res.status})`
+                );
               }
               const data = await res.json();
               const images = data.images;
@@ -55,6 +58,7 @@ const SearchImages = ({
               );
             } catch (error) {
               console.error(error);
+              alert(error instanceof Error ? error.message : "Failed to fetch images");
             } finally {
               setLoading(false);
             }

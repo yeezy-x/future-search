@@ -2,11 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createGeminiModel = createGeminiModel;
 const google_genai_1 = require("@langchain/google-genai");
+const config_1 = require("../../../config");
 function createGeminiModel(model) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-        throw new Error("GEMINI_API_KEY is not defined");
-    }
+    const apiKey = (0, config_1.getGoogleApiKey)();
     return new google_genai_1.ChatGoogleGenerativeAI({
         model,
         apiKey,

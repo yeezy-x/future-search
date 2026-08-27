@@ -5,14 +5,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SearxngClient = void 0;
 const axios_1 = __importDefault(require("axios"));
-const config_1 = require("../../config");
 class SearxngClient {
     baseUrl;
     constructor(baseUrl) {
         this.baseUrl = baseUrl;
     }
     async search(query, options) {
-        const searxngURL = (0, config_1.getSearxngApiEndpoint)();
+        const searxngURL = this.baseUrl;
         const url = new URL(`${searxngURL}/search?format=json`);
         url.searchParams.set("q", query);
         if (options) {

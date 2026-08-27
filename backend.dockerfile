@@ -1,6 +1,18 @@
 FROM node:22-bookworm-slim
 
-ARG SEARXNG_API_URL
-ENV SEARXNG_API_URL=${SEARXNG_API_URL}
+WORKDIR /home/futuresearch
 
-WORKDIR /home/ 
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY tsconfig.json ./
+COPY src ./src
+
+RUN npm run build
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+EXPOSE 3000
+
+CMD ["npm", "start"]

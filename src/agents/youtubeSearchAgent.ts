@@ -147,7 +147,7 @@ const createBasicYoutubeSearchRetrieverChain = (llm: BaseChatModel) => {
       };
     }),
   ]).withConfig({
-    runName: "FinalSearchRetriever",
+    runName: "FinalSourceRetriever",
   });
 };
 
@@ -229,7 +229,7 @@ const handleStream = async (
           "data",
           JSON.stringify({
             type: "sources",
-            data: event.data.output,
+            data: event.data.output.docs,
           })
         );
       }
@@ -238,6 +238,11 @@ const handleStream = async (
         event.event === "on_chain_stream" &&
         event.name === "FinalResponseGenerator"
       ) {
+        const chunk = event.data?.chunk;
+
+        if (!chunk) {
+          continue;
+        }
         emitter.emit(
           "data",
           JSON.stringify({

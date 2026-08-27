@@ -1,20 +1,23 @@
-import {getChatModel, getChatModelProvider, getOllamaApiEndpoint} from "../../config";
-import { createOllamaModel } from "./providers/ollama";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { getSelectedModelId } from "../../config";
+import { getModelById } from "./models.registry";
 import { createOpenRouterModel } from "./providers/openrouter";
 import { createGeminiModel } from "./providers/gemini";
-import { ChatModel } from "./ai.types";
 
-export const getChatModelInstance = (): ChatModel => {
-  const provider = getChatModelProvider();
-  const model = getChatModel();
-  if (provider === "ollama") {
-    return createOllamaModel(model);
+export const getChatModelInstance = (): BaseChatModel => {
+  const modelId = getSelectedModelId();
+  const option = getModelById(modelId);
+
+  if (!option) {
+    throw new Error(`Unknown model id: ${modelId}`);
   }
-  if (provider === "openrouter") {
-    return createOpenRouterModel(model);
+
+  switch (option.provider) {
+    case "openrouter":
+      return createOpenRouterModel(option.model);
+    case "gemini":
+      return createGeminiModel(option.model);
+    default:
+      throw new Error(`Unsupported provider: ${option.provider}`);
   }
-  if (provider === "gemini") {
-    return createGeminiModel(model);
-  }
-  throw new Error(`Unsupported chat model provider: ${provider}`);
 };

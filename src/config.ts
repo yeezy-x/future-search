@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { DEFAULT_MODEL_ID } from "./modules/ai/models.registry";
 
 export const getSearxngApiEndpoint = (): string => {
   const endpoint = process.env.SEARXNG_URL;
@@ -8,43 +9,29 @@ export const getSearxngApiEndpoint = (): string => {
   return endpoint;
 };
 
-export const getChatModelProvider = (): string => {
-  const provider = process.env.CHAT_MODEL_PROVIDER;
-  if (!provider) {
-    throw new Error("CHAT_MODEL_PROVIDER is not defined");
-  }
-  return provider;
-};
-
-export const getChatModel = (): string => {
-  const model = process.env.CHAT_MODEL;
-  if (!model) {
-    throw new Error("CHAT_MODEL is not defined");
-  }
-  return model;
+export const getSelectedModelId = (): string => {
+  return process.env.SELECTED_MODEL_ID ?? DEFAULT_MODEL_ID;
 };
 
 export const getOllamaApiEndpoint = (): string => {
   return process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 };
 
-export const getOpenRouterApiKey = (): string => {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) {
-    throw new Error("OPENROUTER_API_KEY is not defined");
-  }
-  return key;
+export const getOpenRouterApiKey = (): string | undefined => {
+  return process.env.OPENROUTER_API_KEY;
 };
 
-export const getGoogleApiKey = (): string => {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) {
-    throw new Error("GEMINI_API_KEY is not defined");
-  }
-  return key;
+export const getGoogleApiKey = (): string | undefined => {
+  return process.env.GEMINI_API_KEY;
 };
 
-export const getEmbeddingProvider = () => {
+export const hasOpenRouterApiKey = (): boolean =>
+  Boolean(getOpenRouterApiKey());
+
+export const hasGeminiApiKey = (): boolean =>
+  Boolean(getGoogleApiKey());
+
+export const getEmbeddingProvider = (): string => {
   const provider = process.env.EMBEDDING_PROVIDER;
   if (!provider) {
     throw new Error("EMBEDDING_PROVIDER is not configured");
@@ -52,7 +39,7 @@ export const getEmbeddingProvider = () => {
   return provider;
 };
 
-export const getEmbeddingModel = () => {
+export const getEmbeddingModel = (): string => {
   const model = process.env.EMBEDDING_MODEL;
   if (!model) {
     throw new Error("EMBEDDING_MODEL is not configured");

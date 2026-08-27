@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Document } from "@langchain/core/documents";
 import { Message } from "../ChatWindow";
-import { Check, ClipboardList, FilePen, ThumbsDown } from "lucide-react";
+import { Check, ClipboardList } from "lucide-react";
 
 const Copy = ({
   message,
@@ -13,14 +14,20 @@ const Copy = ({
 
   return (
     <button
+      type="button"
+      aria-label="Copy answer"
       onClick={() => {
-        const contentToCopy = `${initialMessage}${
-          message.sources &&
-          message.sources.length > 0 &&
-          `\n\nCitations:\n${message.sources
-            ?.map((source: any, i: any) => `[${i + 1}] ${source.metadata.url}`)
-            .join(`\n`)}`
-        }`;
+        const citations =
+          message.sources && message.sources.length > 0
+            ? `\n\nCitations:\n${message.sources
+                .map(
+                  (source: Document, i: number) =>
+                    `[${i + 1}] ${source.metadata.url}`
+                )
+                .join("\n")}`
+            : "";
+
+        const contentToCopy = `${initialMessage}${citations}`;
         navigator.clipboard.writeText(contentToCopy);
         setCopied(true);
         setTimeout(() => setCopied(false), 1000);

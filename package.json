@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node dist/app.js",
     "build": "tsc",
-    "dev": "nodemon src/app.ts"
+    "dev": "nodemon src/app.ts",
+    "dev:ui": "npm run dev --prefix ui -- -p 3001",
+    "build:ui": "npm run build --prefix ui"
   },
   "author": "yeezy",
   "license": "ISC",
@@ -17,6 +19,7 @@
     "@langchain/textsplitters": "^1.0.1",
     "axios": "^1.19.0",
     "class-variance-authority": "^0.7.1",
+    "cn": "^0.1.1",
     "compute-cosine-similarity": "^1.1.0",
     "compute-dot": "^1.1.0",
     "cors": "^2.8.5",

@@ -1,8 +1,8 @@
-import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { BaseMessage } from "@langchain/core/messages";
 import { Router } from "express";
 import generateSuggestions from "../agents/suggestionGeneratorAgent";
-import { getSelectedChatModel } from "../modules/ai/model.selector";
 import { parseChatHistoryFromRequest } from "../utils/parseChatHistoryFromRequest";
+import { getChatModelInstance } from "../modules/ai/model.factory";
 
 const suggestionsRouter = Router();
 
@@ -18,7 +18,7 @@ suggestionsRouter.post("/", async (req, res) => {
       return res.status(400).json({message:"Chat history must not be empty"});
     }
 
-    const llm = await getSelectedChatModel();
+    const llm = getChatModelInstance();
     const suggestions = await generateSuggestions(
       { chat_history: formatted_chat_history },
       llm

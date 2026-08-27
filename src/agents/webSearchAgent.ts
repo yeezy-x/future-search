@@ -65,7 +65,7 @@ const handleStream = async (
           "data",
           JSON.stringify({
             type: "sources",
-            data: event.data.output,
+            data: event.data.output.docs,
           })
         );
       }
@@ -153,7 +153,7 @@ const createBasicWebSearchRetrieverChain = (llm: BaseChatModel) => {
       };
     })
   ]).withConfig({
-    runName: "FinalSearchRetriever",
+    runName: "FinalSourceRetriever",
   });
 };
 

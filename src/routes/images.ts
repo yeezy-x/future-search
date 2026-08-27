@@ -1,8 +1,8 @@
 import { Router } from "express";
 import handleImageSearch from "../agents/imageSearchAgent";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
-import { getSelectedChatModel } from "../modules/ai/model.selector";
 import { parseChatHistoryFromRequest } from "../utils/parseChatHistoryFromRequest";
+import { getChatModelInstance } from "../modules/ai/model.factory";
 
 const imagesRouter = Router();
 
@@ -20,13 +20,11 @@ imagesRouter.post("/", async (req, res) => {
 
     const formatted_chat_history: BaseMessage[] = parseChatHistoryFromRequest(chat_history);
 
-    if(formatted_chat_history.length === 0){
-      return res.status(400).json({message:"Chat history must not be empty"});
-    }
+    const history = formatted_chat_history.length > 0 ? formatted_chat_history : [new HumanMessage(query)];
 
-    const llm = await getSelectedChatModel();
+    const llm = getChatModelInstance();
     const images = await handleImageSearch(
-      { chat_history: formatted_chat_history, query },
+      { chat_history: history, query },
       llm
     );
     res.status(200).json({ images });

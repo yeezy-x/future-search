@@ -1,96 +1,174 @@
 "use client";
 
+import { useAppShell } from "@/context/AppShellContext";
+import Layout from "./Layout";
+import SettingsDialog from "./SettingsDialog";
+import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import {
-  BookOpenText,
-  Home,
-  Search,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
   Settings,
+  Trash2,
   SquareIcon,
 } from "lucide-react";
-import Layout from "./Layout";
-import { useSelectedLayoutSegments } from "next/navigation";
-import Link from "next/link";
-import { useState } from "react";
-import SettingsDialog from "./SettingsDialog";
+
+const SIDEBAR_WIDTH = 280;
 
 const Sidebar = ({ children }: { children: React.ReactNode }) => {
-  const segments = useSelectedLayoutSegments();
-
+  const pathname = usePathname();
+  const router = useRouter();
+  const {
+    sidebarOpen,
+    toggleSidebar,
+    setSidebarOpen,
+    sessions,
+    deleteSession,
+  } = useAppShell();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const navLinks = [
-    {
-      icon: Home,
-      href: "/",
-      active: segments.length === 0,
-      label: "Home",
-    },
-    {
-      icon: Search,
-      href: "/",
-      active: segments.includes("discover"),
-      label: "Discover",
-    },
-    {
-      icon: BookOpenText,
-      href: "/",
-      active: segments.includes("library"),
-      label: "Library",
-    },
-  ];
+  const activeSessionId =
+    pathname.startsWith("/c/") ? pathname.split("/c/")[1] : null;
+
+  const handleNewChat = () => {
+    router.push("/");
+    if (window.innerWidth < 1024) setSidebarOpen(false);
+  };
+
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    deleteSession(id);
+    if (activeSessionId === id) router.push("/");
+  };
+
   return (
-    <div>
-      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-20 lg:flex-col">
-        <div className="flex grow flex-col items-center justify-between gap-y-5 overflow-y-auto bg-[#111111] px-2 py-8">
-          <a href="/">
-            <SquareIcon className="text-white cursor-pointer" />
-          </a>
-          <div className="flex flex-col items-center gap-y-3 w-full">
-            {navLinks.map((link, i) => (
-              <Link
-                key={i}
-                href={link.href}
-                className={`
-                    relative flex flex-row items-center cursor-pointer hover:bg-white/10 hover:text-white duration-150 transition w-full py-2 rounded-lg ${
-                      link.active ? "text-white" : "text-white/70"
-                    }`}
-              >
-                <link.icon />
-                {link.active && (
-                  <div className="absolute right-0 -mr-2 h-full w-1 rounded-l-lg bg-white" />
-                )}
-              </Link>
-            ))}
-          </div>
-          <Settings
-            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-            className="text-white cursor-pointer"
-          />
-          <SettingsDialog
-            isOpen={isSettingsOpen}
-            setIsOpen={setIsSettingsOpen}
-          />
-        </div>
-      </div>
-      <div className="fixed bottom-0 flex flex-row w-full z-50 items-center gap-x-6 bg-[#111111] px-4 py-4 shadow-sm lg:hidden">
-        {navLinks.map((link, i) => (
+    <div className="relative min-h-screen bg-[#0A0A0A]">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar panel */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex flex-col bg-[#111111] border-r border-[#1C1C1C] transition-transform duration-200 ease-out",
+          "w-[280px] max-w-[85vw]",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+        style={{ width: SIDEBAR_WIDTH }}
+      >
+        <div className="flex items-center justify-between gap-2 px-3 py-4 border-b border-[#1C1C1C]">
           <Link
-            key={i}
-            href={link.href}
-            className={`
-                    relative flex flex-col items-center space-y-1 text-center w-full ${
-                      link.active ? "text-white" : "text-white/70"
-                    }`}
+            href="/"
+            className="flex items-center gap-2 text-white font-medium text-sm min-w-0"
+            onClick={() => {
+              if (window.innerWidth < 1024) setSidebarOpen(false);
+            }}
           >
-            {link.active && (
-              <div className="absolute top-0 -mt-4 w-full h-1 rounded-l-lg bg-white" />
-            )}
-            <link.icon />
-            <p className="text-xs">{link.label}</p>
+            <SquareIcon size={18} className="shrink-0" />
+            <span className="truncate">Future Search</span>
           </Link>
-        ))}
-      </div>
-      <Layout>{children}</Layout>
+          <button
+            type="button"
+            aria-label="Close sidebar"
+            onClick={toggleSidebar}
+            className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition shrink-0"
+          >
+            <PanelLeftClose size={18} />
+          </button>
+        </div>
+
+        <div className="px-3 py-3">
+          <button
+            type="button"
+            onClick={handleNewChat}
+            className="flex w-full items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-white bg-white/10 hover:bg-white/15 transition"
+          >
+            <Plus size={18} />
+            New chat
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 pb-3 min-h-0">
+          <p className="px-2 py-2 text-xs font-medium text-white/40 uppercase tracking-wide">
+            Recent
+          </p>
+          {sessions.length === 0 ? (
+            <p className="px-2 py-3 text-sm text-white/40">No chats yet</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {sessions.map((session) => {
+                const isActive = activeSessionId === session.id;
+                return (
+                  <li key={session.id}>
+                    <Link
+                      href={`/c/${session.id}`}
+                      onClick={() => {
+                        if (window.innerWidth < 1024) setSidebarOpen(false);
+                      }}
+                      className={cn(
+                        "group flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm transition w-full text-left",
+                        isActive
+                          ? "bg-white/10 text-white"
+                          : "text-white/70 hover:bg-white/5 hover:text-white"
+                      )}
+                    >
+                      <span className="truncate flex-1 min-w-0">
+                        {session.title}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Delete chat"
+                        onClick={(e) => handleDelete(session.id, e)}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition shrink-0"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div className="px-3 py-3 border-t border-[#1C1C1C]">
+          <button
+            type="button"
+            aria-label="Settings"
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex w-full items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-white/70 hover:text-white hover:bg-white/10 transition"
+          >
+            <Settings size={18} />
+            Settings
+          </button>
+        </div>
+
+        <SettingsDialog isOpen={isSettingsOpen} setIsOpen={setIsSettingsOpen} />
+      </aside>
+
+      {/* Collapsed toggle (desktop + mobile when sidebar hidden) */}
+      {!sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Open sidebar"
+          onClick={toggleSidebar}
+          className="fixed top-4 left-4 z-40 p-2 rounded-xl bg-[#111111] border border-[#1C1C1C] text-white/70 hover:text-white hover:bg-[#1c1c1c] transition shadow-lg"
+        >
+          <PanelLeftOpen size={18} />
+        </button>
+      )}
+
+      <Layout sidebarOpen={sidebarOpen}>{children}</Layout>
     </div>
   );
 };

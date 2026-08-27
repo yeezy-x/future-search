@@ -1,27 +1,41 @@
 import { Router } from "express";
 import {
-  getChatModel,
-  getChatModelProvider,
   getOllamaApiEndpoint,
+  getSelectedModelId,
+  hasGeminiApiKey,
+  hasOpenRouterApiKey,
 } from "../config";
+import {
+  FREE_CHAT_MODELS,
+  getModelById,
+} from "../modules/ai/models.registry";
 
 const configRouter = Router();
 
-const providers: Record<string, string[]> = {
-  ollama: ["llama3.2", "qwen3-embedding:0.6b"],
-  openrouter: ["openrouter/free", "anthropic/claude-3.5-sonnet"],
-  gemini: ["gemini-2.5-flash", "gemini-3.7-flash"],
+const getAvailableModels = () => {
+  return FREE_CHAT_MODELS.filter((model) => {
+    if (model.provider === "openrouter") return hasOpenRouterApiKey();
+    if (model.provider === "gemini") return hasGeminiApiKey();
+    return false;
+  });
 };
 
 configRouter.get("/", (_req, res) => {
   try {
-    const selectedProvider = getChatModelProvider();
-    const selectedChatModel = getChatModel();
+    const models = getAvailableModels();
+    const selectedModelId = getSelectedModelId();
+    const isSelectedAvailable = models.some((m) => m.id === selectedModelId);
 
     res.status(200).json({
-      providers,
-      selectedProvider,
-      selectedChatModel,
+      models: models.map(({ id, label, description, provider }) => ({
+        id,
+        label,
+        description,
+        provider,
+      })),
+      selectedModelId: isSelectedAvailable
+        ? selectedModelId
+        : models[0]?.id ?? selectedModelId,
       ollamaApiUrl: getOllamaApiEndpoint(),
     });
   } catch (err: any) {
@@ -32,22 +46,28 @@ configRouter.get("/", (_req, res) => {
 
 configRouter.post("/", (req, res) => {
   try {
-    const { selectedProvider, selectedChatModel, ollamaApiUrl } = req.body;
+    const { selectedModelId, ollamaApiUrl } = req.body;
 
-    if (selectedProvider) {
-      if (!providers[selectedProvider]) {
-        return res.status(400).json({ message: "Invalid provider" });
+    if (selectedModelId) {
+      const model = getModelById(selectedModelId);
+      if (!model) {
+        return res.status(400).json({ message: "Invalid model" });
       }
-      process.env.CHAT_MODEL_PROVIDER = selectedProvider;
-    }
 
-    if (selectedChatModel) {
-      process.env.CHAT_MODEL = selectedChatModel;
+      const available = getAvailableModels();
+      if (!available.some((m) => m.id === selectedModelId)) {
+        return res.status(400).json({
+          message: `Model "${selectedModelId}" is not available. Check API keys.`,
+        });
+      }
+
+      process.env.SELECTED_MODEL_ID = selectedModelId;
     }
 
     if (ollamaApiUrl) {
       process.env.OLLAMA_BASE_URL = ollamaApiUrl;
     }
+
     res.status(200).json({ message: "Config updated for this server session" });
   } catch (err: any) {
     console.error("[CONFIG POST ERROR]", err);

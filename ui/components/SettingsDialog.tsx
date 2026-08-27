@@ -1,13 +1,17 @@
 import { Dialog, Transition } from "@headlessui/react";
 import { CloudUpload, RefreshCcw } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+
+type ModelOption = {
+  id: string;
+  label: string;
+  description?: string;
+  provider: string;
+};
 
 interface SettingsType {
-  providers: {
-    [key: string]: string[];
-  };
-  selectedProvider: string;
-  selectedChatModel: string;
+  models: ModelOption[];
+  selectedModelId: string;
   ollamaApiUrl: string;
 }
 
@@ -23,6 +27,11 @@ const SettingsDialog = ({
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const selectedModel = useMemo(
+    () => config?.models.find((m) => m.id === config.selectedModelId),
+    [config]
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -40,12 +49,13 @@ const SettingsDialog = ({
         }
         const data = (await res.json()) as SettingsType;
         setConfig(data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(err);
         setConfig(null);
         setError(
-          err.message ??
-            "Settings are unavailable. Configure the backend via environment variables."
+          err instanceof Error
+            ? err.message
+            : "Settings are unavailable. Configure the backend via environment variables."
         );
       } finally {
         setIsLoading(false);
@@ -68,8 +78,7 @@ const SettingsDialog = ({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          selectedProvider: config.selectedProvider,
-          selectedChatModel: config.selectedChatModel,
+          selectedModelId: config.selectedModelId,
           ollamaApiUrl: config.ollamaApiUrl,
         }),
       });
@@ -81,9 +90,11 @@ const SettingsDialog = ({
 
       setIsOpen(false);
       window.location.reload();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setSaveError(err.message ?? "Failed to save settings.");
+      setSaveError(
+        err instanceof Error ? err.message : "Failed to save settings."
+      );
     } finally {
       setIsUpdating(false);
     }
@@ -107,6 +118,7 @@ const SettingsDialog = ({
         >
           <div className="fixed inset-0 bg-black/50" />
         </Transition.Child>
+
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4 text-center">
             <Transition.Child
@@ -136,73 +148,55 @@ const SettingsDialog = ({
                 {config && !isLoading && !error && (
                   <div className="flex flex-col space-y-4 mt-6 pr-2">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-white/70 text-sm">LLM Provider</p>
+                      <p className="text-white/70 text-sm">Chat Model</p>
                       <select
-                        value={config.selectedProvider}
+                        value={config.selectedModelId}
                         onChange={(e) =>
                           setConfig({
                             ...config,
-                            selectedProvider: e.target.value,
-                            selectedChatModel:
-                              config.providers[e.target.value]?.[0] ?? "",
+                            selectedModelId: e.target.value,
                           })
                         }
                         className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
                       >
-                        {Object.keys(config.providers).map((provider) => (
-                          <option key={provider} value={provider}>
-                            {provider.charAt(0).toUpperCase() + provider.slice(1)}
+                        {config.models.map((model) => (
+                          <option key={model.id} value={model.id}>
+                            {model.label}
                           </option>
                         ))}
                       </select>
+                      {selectedModel?.description && (
+                        <p className="text-white/50 text-xs mt-1">
+                          {selectedModel.description}
+                        </p>
+                      )}
+                      {selectedModel && (
+                        <p className="text-white/40 text-xs">
+                          Provider: {selectedModel.provider}
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex flex-col space-y-1">
-                      <p className="text-white/70 text-sm">Chat Model</p>
-                      <select
-                        value={config.selectedChatModel}
+                      <p className="text-white/70 text-sm">
+                        Ollama URL (embeddings only)
+                      </p>
+                      <input
+                        type="text"
+                        value={config.ollamaApiUrl}
                         onChange={(e) =>
                           setConfig({
                             ...config,
-                            selectedChatModel: e.target.value,
+                            ollamaApiUrl: e.target.value,
                           })
                         }
                         className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
-                      >
-                        {(config.providers[config.selectedProvider] ?? []).map(
-                          (model) => (
-                            <option key={model} value={model}>
-                              {model}
-                            </option>
-                          )
-                        )}
-                      </select>
+                      />
                     </div>
 
-                    {config.selectedProvider === "ollama" && (
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-white/70 text-sm">Ollama API URL</p>
-                        <input
-                          type="text"
-                          value={config.ollamaApiUrl}
-                          onChange={(e) =>
-                            setConfig({
-                              ...config,
-                              ollamaApiUrl: e.target.value,
-                            })
-                          }
-                          className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
-                        />
-                      </div>
-                    )}
-
-                    {(config.selectedProvider === "openrouter" ||
-                      config.selectedProvider === "gemini") && (
-                      <p className="text-white/50 text-xs">
-                        API keys for {config.selectedProvider} are configured
-                        via server environment variables.
-                      </p>
-                    )}
+                    <p className="text-white/50 text-xs">
+                      API keys are configured via server environment variables.
+                    </p>
                   </div>
                 )}
 
@@ -213,20 +207,22 @@ const SettingsDialog = ({
                 <div className="w-full mt-6 space-y-2">
                   {config && !error && (
                     <p className="text-xs text-white/50">
-                      We&apos;ll refresh the page after updating the settings.
+                      We&apos;ll refresh the page after updating settings.
                       Changes apply to new connections until server restart.
                     </p>
                   )}
                   <button
+                    type="button"
                     onClick={handleSubmit}
                     disabled={isLoading || isUpdating || !config || !!error}
-                    className="bg-[#24A0ED] flex flex-row items-center space-x-2 text-white disabled:text-white/50 hover:bg-opacity-85 transition duration-100 disabled:bg-[#ececec21] rounded-full px-4 py-2"
+                    className="bg-[#24A0ED] flex flex-row items-center justify-center space-x-2 text-white disabled:text-white/50 hover:bg-opacity-85 transition duration-100 disabled:bg-[#ececec21] rounded-full px-4 py-2 text-sm font-medium"
                   >
                     {isUpdating ? (
-                      <RefreshCcw size={20} className="animate-spin" />
+                      <RefreshCcw size={18} className="animate-spin" />
                     ) : (
-                      <CloudUpload size={20} />
+                      <CloudUpload size={18} />
                     )}
+                    <span>Save settings</span>
                   </button>
                 </div>
               </Dialog.Panel>

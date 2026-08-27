@@ -1,20 +1,9 @@
-import { CopyPlus, Globe, Pencil, ScanEye, SwatchBook } from "lucide-react";
+import { Globe, Pencil, ScanEye, SwatchBook } from "lucide-react";
 import { Switch } from "./ui/switch";
 import { cn } from "@/lib/utils";
 import { SiYoutube, SiReddit } from "@icons-pack/react-simple-icons";
 import { Popover, Transition } from "@headlessui/react";
 import { Fragment } from "react";
-
-export const Attach = () => {
-  return (
-    <button
-      type="button"
-      className="p-2 text-white/50 rounded-xl hover:bg-[#1c1c1c] transition duration-200 hover:text-white"
-    >
-      <CopyPlus />
-    </button>
-  );
-};
 
 const focusModes = [
   {
@@ -68,23 +57,24 @@ export const Focus = ({
   focusMode: string;
   setFocusMode: (mode: string) => void;
 }) => {
+  const activeMode = focusModes.find((mode) => mode.key === focusMode);
+
   return (
-    <Popover className={"fixed w-full max-w-[15rem] md:max-w-md lg:max-w-lg"}>
+    <Popover className="relative inline-flex shrink-0">
       <Popover.Button
         type="button"
-        className={
-          "p-2 text-white/50 active:scale-95 rounded-xl hover:bg-[#1c1c1c] transition duration-200 hover:text-white"
-        }
+        aria-label="Select search mode"
+        className="p-2 text-white/50 active:scale-95 rounded-xl hover:bg-[#1c1c1c] transition duration-200 hover:text-white"
       >
-        {focusMode !== "webSearch" ? (
+        {focusMode !== "webSearch" && activeMode ? (
           <div className="flex flex-row items-center space-x-1">
-            {focusModes.find((mode) => mode.key === focusMode)?.icon}
-            <p className="text-xs font-medium">
-              {focusModes.find((mode) => mode.key === focusMode)?.title}
+            {activeMode.icon}
+            <p className="text-xs font-medium whitespace-nowrap">
+              {activeMode.title}
             </p>
           </div>
         ) : (
-          <ScanEye />
+          <ScanEye size={20} />
         )}
       </Popover.Button>
       <Transition
@@ -96,27 +86,31 @@ export const Focus = ({
         leaveFrom="opacity-100 translate-y-0"
         leaveTo="opacity-0 translate-y-1"
       >
-        <Popover.Panel className={"absolute z-10 w-full"}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1 bg-[#0A0A0A] border border-[#1c1c1c] rounded-lg w-full p-2 max-h-[200px] md:max-h-none overflow-y-auto">
-            {focusModes.map((mode, i) => (
+        <Popover.Panel
+          className="absolute left-0 bottom-full mb-2 z-50 w-[min(calc(100vw-2rem),32rem)] min-w-[16rem]"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1 bg-[#0A0A0A] border border-[#1c1c1c] rounded-lg p-2 shadow-xl max-h-[min(50vh,280px)] overflow-y-auto">
+            {focusModes.map((mode) => (
               <Popover.Button
                 onClick={() => setFocusMode(mode.key)}
-                key={i}
+                key={mode.key}
                 className={cn(
-                  "p-2 rounded-lg flex flex-col items-center justify-start text-start space-y-2 duration-100 cursor-pointer transition",
-                  focusMode == mode.key ? "bg-[#111111]" : "hover:bg-[#111111]"
+                  "p-3 rounded-lg flex flex-col items-start justify-start text-left space-y-1 w-full min-w-0 duration-100 cursor-pointer transition",
+                  focusMode === mode.key ? "bg-[#111111]" : "hover:bg-[#111111]"
                 )}
               >
                 <div
                   className={cn(
-                    "flex flex-row items-center space-x-1",
+                    "flex flex-row items-center space-x-1.5",
                     focusMode === mode.key ? "text-[#24A0ED]" : "text-white"
                   )}
                 >
                   {mode.icon}
                   <p className="text-sm font-medium">{mode.title}</p>
                 </div>
-                <p className="text-white/70 text-xs">{mode.description}</p>
+                <p className="text-white/70 text-xs leading-snug">
+                  {mode.description}
+                </p>
               </Popover.Button>
             ))}
           </div>
@@ -138,7 +132,7 @@ export const CopilotToggle = ({
       <Switch
         checked={copilotEnabled}
         onCheckedChange={setCopilotEnabled}
-        className="bg=[#111111] border border-[#1C1C1C] relative inline-flex h-5 w-10 sm:h-6 sm:w-11 items-center rounded-full"
+        className="bg-[#111111] border border-[#1C1C1C] relative inline-flex h-5 w-10 sm:h-6 sm:w-11 items-center rounded-full"
       >
         <span className="sr-only">Copilot</span>
         <span

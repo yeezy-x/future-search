@@ -1,7 +1,7 @@
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { RunnableLambda, RunnableMap, RunnableSequence } from "@langchain/core/runnables";
-import { BaseMessage } from "langchain";
+import { RunnableMap, RunnableSequence } from "@langchain/core/runnables";
+import { BaseMessage } from "@langchain/core/messages";
 import { formatChatHistoryAsString } from "../utils/formatSearchHistory";
 import { SearxngClient } from "../modules/search/searxng.client";
 import { getSearxngApiEndpoint } from "../config";
@@ -10,6 +10,13 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 type VideoSearchInput = {
   chat_history: BaseMessage[];
   query: string;
+};
+
+type VideoResult = {
+  thumbnail: string;
+  iframe_src: string;
+  title: string;
+  url: string;
 };
 
 const videoSearchPrompt = `
@@ -31,39 +38,58 @@ Rephrased question:
 const outputParser = new StringOutputParser();
 const searxngClient = new SearxngClient(getSearxngApiEndpoint());
 
-const createVideoSearchChain = (llm: BaseChatModel) => {
+const searchYoutube = async (searchQuery: string): Promise<VideoResult[]> => {
+  const result = await searxngClient.search(searchQuery, {
+    engines: ["youtube"],
+  });
+
+  const videos: VideoResult[] = [];
+  result.results.forEach((item) => {
+    const thumbnail = item.thumbnail || item.thumbnail_src;
+    if (thumbnail && item.iframe_src && item.title && item.url) {
+      videos.push({
+        thumbnail,
+        iframe_src: item.iframe_src,
+        title: item.title,
+        url: item.url,
+      });
+    }
+  });
+
+  return videos.slice(0, 10);
+};
+
+const createRephraseChain = (llm: BaseChatModel) => {
   return RunnableSequence.from([
     RunnableMap.from({
-      chat_history: (input: VideoSearchInput) => formatChatHistoryAsString(input.chat_history),
+      chat_history: (input: VideoSearchInput) =>
+        formatChatHistoryAsString(input.chat_history),
       query: (input: VideoSearchInput) => input.query,
     }),
     PromptTemplate.fromTemplate(videoSearchPrompt),
     llm,
     outputParser,
-    RunnableLambda.from(async (input: string) => {
-      const result = await searxngClient.search(input, {
-        engines: ["youtube"],
-      });
-      const videos: { thumbnail: string; iframe_src: string; title: string; url: string }[] = [];
-      result.results.forEach((result) => {
-        const thumbnail = result.thumbnail || result.thumbnail_src;
-        if (thumbnail && result.iframe_src && result.title && result.url) {
-          videos.push({
-            thumbnail,
-            iframe_src: result.iframe_src,
-            title: result.title,
-            url: result.url,
-          });
-        }
-      });
-      return videos.slice(0, 10);
-    }),
   ]);
 };
 
-const handleVideoSearch = (input: VideoSearchInput, llm: BaseChatModel) => {
-  const videoSearchChain = createVideoSearchChain(llm);
-  return videoSearchChain.invoke(input);
+const handleVideoSearch = async (
+  input: VideoSearchInput,
+  llm: BaseChatModel
+): Promise<VideoResult[]> => {
+  let searchQuery = input.query.trim();
+
+  try {
+    const rephraseChain = createRephraseChain(llm);
+    const rephrased = (await rephraseChain.invoke(input)).trim();
+    if (rephrased) searchQuery = rephrased;
+  } catch (err) {
+    console.warn(
+      "[VIDEO SEARCH] LLM rephrase failed, using original query:",
+      err instanceof Error ? err.message : err
+    );
+  }
+
+  return searchYoutube(searchQuery);
 };
 
 export default handleVideoSearch;

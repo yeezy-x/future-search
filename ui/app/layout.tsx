@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
+import { AppShellProvider } from "@/context/AppShellContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Future Search - Chat with internet",
+  title: "Future Search - Chat with the internet",
   description:
-    "Future Search is an AI powered that is connected to the internet",
+    "Future Search is an AI assistant connected to the internet",
 };
 
 export default function RootLayout({
@@ -19,7 +20,9 @@ export default function RootLayout({
   return (
     <html className="h-full" lang="en">
       <body className={`${inter.className} h-full`}>
-        <Sidebar>{children}</Sidebar>
+        <AppShellProvider>
+          <Sidebar>{children}</Sidebar>
+        </AppShellProvider>
       </body>
     </html>
   );
