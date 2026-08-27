@@ -12,7 +12,6 @@ type ModelOption = {
 interface SettingsType {
   models: ModelOption[];
   selectedModelId: string;
-  ollamaApiUrl: string;
 }
 
 const SettingsDialog = ({
@@ -79,7 +78,6 @@ const SettingsDialog = ({
         },
         body: JSON.stringify({
           selectedModelId: config.selectedModelId,
-          ollamaApiUrl: config.ollamaApiUrl,
         }),
       });
 
@@ -175,23 +173,6 @@ const SettingsDialog = ({
                           Provider: {selectedModel.provider}
                         </p>
                       )}
-                    </div>
-
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-white/70 text-sm">
-                        Ollama URL (embeddings only)
-                      </p>
-                      <input
-                        type="text"
-                        value={config.ollamaApiUrl}
-                        onChange={(e) =>
-                          setConfig({
-                            ...config,
-                            ollamaApiUrl: e.target.value,
-                          })
-                        }
-                        className="bg-[#111111] px-3 py-2 flex items-center overflow-hidden border border-[#1C1C1C] text-white rounded-lg text-sm"
-                      />
                     </div>
 
                     <p className="text-white/50 text-xs">

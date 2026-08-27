@@ -12,12 +12,9 @@ const websocket_1 = require("./websocket");
 const ws_1 = require("ws");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-//create an http server to handle http requests
 const server = http_1.default.createServer(app);
-//create a webSocket server and attach to the existing http server
 const wss = new ws_1.WebSocketServer({ server });
 const corsOptions = {
-    //cors options for the server to allow requests from all origins
     origin: "*"
 };
 app.use((0, cors_1.default)(corsOptions));

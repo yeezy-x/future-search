@@ -3,5 +3,8 @@ services:
     image: searxng/searxng:latest
     ports:
       - "8080:8080"
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-a2fb23f1b02e6ee83875b09826990de0f6bd908b6638e8c10277d415f6ab852b}
+      SEARXNG_BIND_ADDRESS: 0.0.0.0
     volumes:
       - ./searxng-settings.yml:/etc/searxng/settings.yml:ro

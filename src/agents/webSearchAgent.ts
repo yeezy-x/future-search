@@ -7,8 +7,7 @@ import { RunnableLambda, RunnableMap, RunnableSequence } from "@langchain/core/r
 import { ChatPromptTemplate, MessagesPlaceholder, PromptTemplate } from "@langchain/core/prompts";
 import { normalizeSearchResults } from "../modules/search/search.normalizer";
 import { deduplicateSearchResults } from "../modules/search/search.deduplicator";
-import { rankSearchResults, rerankDocs } from "../modules/search/search.ranker";
-import { Embeddings } from "@langchain/core/embeddings";
+import { rankSearchResults, limitDocs } from "../modules/search/search.ranker";
 import { StreamEvent } from "@langchain/core/tracers/log_stream";
 import eventEmitter from "events";
 import { Document } from "langchain";
@@ -157,22 +156,14 @@ const createBasicWebSearchRetrieverChain = (llm: BaseChatModel) => {
   });
 };
 
-const createBasicWebSearchAnsweringChain = (llm: BaseChatModel, embeddings: Embeddings) => {
+const createBasicWebSearchAnsweringChain = (llm: BaseChatModel) => {
   const basicWebSearchRetrieverChain = createBasicWebSearchRetrieverChain(llm);
-  
-  const semanticReranking = RunnableLambda.from(
-    async (input: { query: string; docs: Document[] }) => {
-      return {
-        query: input.query, 
-        docs: await rerankDocs({
-          query: input.query,
-          docs: input.docs,
-          embeddings,
-          limit: 10,
-          threshold: 0.5,
-        }),
-      };
-    }
+
+  const takeTopDocs = RunnableLambda.from(
+    async (input: { query: string; docs: Document[] }) => ({
+      query: input.query,
+      docs: limitDocs(input.docs, 10),
+    })
   );
   
   const processDocs = RunnableLambda.from(
@@ -200,7 +191,7 @@ const createBasicWebSearchAnsweringChain = (llm: BaseChatModel, embeddings: Embe
           chat_history: formatChatHistoryAsString(input.chat_history),
         }),
         basicWebSearchRetrieverChain,
-        semanticReranking,
+        takeTopDocs,
         processDocs,
       ]),
     }),
@@ -216,14 +207,10 @@ const createBasicWebSearchAnsweringChain = (llm: BaseChatModel, embeddings: Embe
   });
 };
 
-const basicWebSearch = (
-  input: WebSearchChainInput,
-  llm: BaseChatModel,
-  embeddings: Embeddings
-) => {
+const basicWebSearch = (input: WebSearchChainInput, llm: BaseChatModel) => {
   const event = new eventEmitter();
   try {
-    const basicWebSearchAnsweringChain = createBasicWebSearchAnsweringChain(llm, embeddings);
+    const basicWebSearchAnsweringChain = createBasicWebSearchAnsweringChain(llm);
     const stream = basicWebSearchAnsweringChain.streamEvents(
       input,
       { version: "v1" }
@@ -240,12 +227,8 @@ const basicWebSearch = (
   return event;
 };
 
-const handleWebSearch = async (
-  input: WebSearchChainInput,
-  llm: BaseChatModel,
-  embeddings: Embeddings
-) => {
-  const eventEmitter = basicWebSearch(input, llm, embeddings);
+const handleWebSearch = async (input: WebSearchChainInput, llm: BaseChatModel) => {
+  const eventEmitter = basicWebSearch(input, llm);
   return eventEmitter;
 };
 

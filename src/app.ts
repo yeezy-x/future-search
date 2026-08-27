@@ -10,15 +10,10 @@ import { WebSocketServer } from 'ws';
 dotenv.config();
 
 const app=express();
-//create an http server to handle http requests
 const server=http.createServer(app);
 
-//create a webSocket server and attach to the existing http server
-const wsPath = process.env.WS_PATH || "/";
-const wss = new WebSocketServer({ server, path: wsPath });
-
+const wss=new WebSocketServer({server});
 const corsOptions:CorsOptions={ 
-    //cors options for the server to allow requests from all origins
     origin:"*"
 };
 

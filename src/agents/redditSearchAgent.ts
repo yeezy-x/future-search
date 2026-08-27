@@ -7,8 +7,7 @@ import { SearxngClient } from "../modules/search/searxng.client";
 import { ChatPromptTemplate, MessagesPlaceholder, PromptTemplate } from "@langchain/core/prompts";
 import { normalizeSearchResults } from "../modules/search/search.normalizer";
 import { deduplicateSearchResults } from "../modules/search/search.deduplicator";
-import { rankSearchResults, rerankDocs } from "../modules/search/search.ranker";
-import { Embeddings } from "@langchain/core/embeddings";
+import { rankSearchResults, limitDocs } from "../modules/search/search.ranker";
 import { formatChatHistoryAsString } from "../utils/formatSearchHistory";
 import { StreamEvent } from "@langchain/core/tracers/log_stream";
 import eventEmitter from "events";
@@ -94,24 +93,16 @@ const createBasicRedditSearchRetrieverChain = (llm: BaseChatModel) => {
   ]).withConfig({ runName: "FinalSourceRetriever" });
 };
 
-const createBasicRedditSearchAnsweringChain = (llm: BaseChatModel, embeddings: Embeddings) => {
+const createBasicRedditSearchAnsweringChain = (llm: BaseChatModel) => {
   const basicRedditSearchRetrieverChain = createBasicRedditSearchRetrieverChain(llm);
-  
-  const semanticReranking = RunnableLambda.from(async (input: {
+
+  const takeTopDocs = RunnableLambda.from(async (input: {
     query: string;
     docs: Document[];
-  }) => {
-    return {
-      query: input.query,
-      docs: await rerankDocs({
-        query: input.query,
-        docs: input.docs,
-        embeddings,
-        limit: 10,
-        threshold: 0.5,
-      }),
-    };
-  });
+  }) => ({
+    query: input.query,
+    docs: limitDocs(input.docs, 10),
+  }));
   
   const processDocs = RunnableLambda.from(async (input: {
     query: string;
@@ -139,7 +130,7 @@ const createBasicRedditSearchAnsweringChain = (llm: BaseChatModel, embeddings: E
           chat_history: formatChatHistoryAsString(input.chat_history),
         }),
         basicRedditSearchRetrieverChain,
-        semanticReranking,
+        takeTopDocs,
         processDocs
       ])
     }),
@@ -202,14 +193,10 @@ const handleStream = async (
   }
 };
 
-const basicRedditSearch = (
-  input: RedditSearchInput,
-  llm: BaseChatModel,
-  embeddings: Embeddings
-) => {
+const basicRedditSearch = (input: RedditSearchInput, llm: BaseChatModel) => {
   const emitter = new eventEmitter();
   try {
-    const basicRedditSearchAnsweringChain = createBasicRedditSearchAnsweringChain(llm, embeddings);
+    const basicRedditSearchAnsweringChain = createBasicRedditSearchAnsweringChain(llm);
     const stream = basicRedditSearchAnsweringChain.streamEvents(
       input,
       { version: "v1" }
@@ -225,12 +212,8 @@ const basicRedditSearch = (
   return emitter;
 };
 
-const handleRedditSearch = (
-  input: RedditSearchInput,
-  llm: BaseChatModel,
-  embeddings: Embeddings
-) => {
-  const eventEmitter = basicRedditSearch(input, llm, embeddings);
+const handleRedditSearch = (input: RedditSearchInput, llm: BaseChatModel) => {
+  const eventEmitter = basicRedditSearch(input, llm);
   return eventEmitter;
 };
 

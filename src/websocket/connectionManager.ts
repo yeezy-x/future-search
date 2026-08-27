@@ -1,24 +1,18 @@
 import { WebSocket } from "ws";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import type { Embeddings } from "@langchain/core/embeddings";
 import { handleMessage } from "./messageHandler";
-import { getEmbeddingModelInstance } from "../modules/ai/embedding.factory";
 import { getChatModelInstance } from "../modules/ai/model.factory";
 
 export const handleConnection = async (ws: WebSocket) => {
   console.log("WebSocket connection established");
   try {
-    let llm: BaseChatModel | undefined;
-    let embeddings: Embeddings | undefined;
+    const llm = getChatModelInstance();
 
-    llm = getChatModelInstance();
-    embeddings = getEmbeddingModelInstance();
-
-    if (!llm || !embeddings) {
+    if (!llm) {
       ws.send(
         JSON.stringify({
           type: "error",
-          data: "Invalid LLM or embeddings model selected",
+          data: "Invalid LLM model selected",
         })
       );
       ws.close();
@@ -27,7 +21,7 @@ export const handleConnection = async (ws: WebSocket) => {
 
     ws.on("message", async (message) => {
       try {
-        await handleMessage(message.toString(), ws, llm, embeddings);
+        await handleMessage(message.toString(), ws, llm);
       } catch (error) {
         console.error("Failed to handle message:", error);
         ws.send(

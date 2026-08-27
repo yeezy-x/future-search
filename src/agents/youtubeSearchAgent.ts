@@ -14,18 +14,17 @@ import { Document } from "@langchain/core/documents";
 import eventEmitter from "events";
 import type { StreamEvent } from "@langchain/core/tracers/log_stream";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import type { Embeddings } from "@langchain/core/embeddings";
-import { getSearxngApiEndpoint } from "../config";
-import { SearxngClient } from "../modules/search/searxng.client";
-import { normalizeSearchResults } from "../modules/search/search.normalizer";
 import {
   rankSearchResults,
-  rerankDocs,
+  limitDocs,
 } from "../modules/search/search.ranker";
 import { deduplicateSearchResults } from "../modules/search/search.deduplicator";
 import { formatChatHistoryAsString } from "../utils/formatSearchHistory";
 import { fetchYoutubeTranscript } from "../utils/yt.transcript";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { getSearxngApiEndpoint } from "../config";
+import { SearxngClient } from "../modules/search/searxng.client";
+import { normalizeSearchResults } from "../modules/search/search.normalizer";
 
 const basicYoutubeSearchRetrieverPrompt = `
 You will be given a conversation below and a follow up question. You need to rephrase the follow-up question if needed so it is a standalone question that can be used by the LLM to search the web for information.
@@ -151,27 +150,14 @@ const createBasicYoutubeSearchRetrieverChain = (llm: BaseChatModel) => {
   });
 };
 
-const createBasicYoutubeSearchAnsweringChain = (
-  llm: BaseChatModel,
-  embeddings: Embeddings
-) => {
+const createBasicYoutubeSearchAnsweringChain = (llm: BaseChatModel) => {
   const basicYoutubeSearchRetrieverChain = createBasicYoutubeSearchRetrieverChain(llm);
 
-  const semanticReranking = RunnableLambda.from(
-    async (input: { query: string; docs: Document[] }) => {
-      const rerankedDocs = await rerankDocs({
-        query: input.query,
-        docs: input.docs,
-        embeddings,
-        limit: 10,
-        threshold: 0.5,
-      });
-
-      return {
-        query: input.query,
-        docs: rerankedDocs,
-      };
-    }
+  const takeTopDocs = RunnableLambda.from(
+    async (input: { query: string; docs: Document[] }) => ({
+      query: input.query,
+      docs: limitDocs(input.docs, 10),
+    })
   );
 
   const processDocs = RunnableLambda.from(
@@ -199,7 +185,7 @@ const createBasicYoutubeSearchAnsweringChain = (
           chat_history: formatChatHistoryAsString(input.chat_history),
         }),
         basicYoutubeSearchRetrieverChain,
-        semanticReranking,
+        takeTopDocs,
         processDocs,
       ]),
     }),
@@ -272,16 +258,12 @@ const handleStream = async (
 const basicYoutubeSearch = (
   query: string,
   history: BaseMessage[],
-  llm: BaseChatModel,
-  embeddings: Embeddings
+  llm: BaseChatModel
 ) => {
   const emitter = new eventEmitter();
 
   try {
-    const basicYoutubeSearchAnsweringChain = createBasicYoutubeSearchAnsweringChain(
-      llm,
-      embeddings
-    );
+    const basicYoutubeSearchAnsweringChain = createBasicYoutubeSearchAnsweringChain(llm);
 
     const stream = basicYoutubeSearchAnsweringChain.streamEvents(
       {
@@ -306,17 +288,8 @@ const basicYoutubeSearch = (
   return emitter;
 };
 
-const handleYoutubeSearch = (
-  input: YoutubeSearchInput,
-  llm: BaseChatModel,
-  embeddings: Embeddings
-) => {
-  return basicYoutubeSearch(
-    input.query,
-    input.chat_history,
-    llm,
-    embeddings
-  );
+const handleYoutubeSearch = (input: YoutubeSearchInput, llm: BaseChatModel) => {
+  return basicYoutubeSearch(input.query, input.chat_history, llm);
 };
 
 export default handleYoutubeSearch;

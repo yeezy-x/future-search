@@ -1,4 +1,3 @@
-import { Embeddings } from "@langchain/core/embeddings";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { StreamEvent } from "@langchain/core/tracers/log_stream";
 import { BaseMessage, context, Document } from "langchain";
@@ -9,7 +8,7 @@ import { RunnableLambda, RunnableMap, RunnableSequence } from "@langchain/core/r
 import { SearxngClient } from "../modules/search/searxng.client";
 import { normalizeSearchResults } from "../modules/search/search.normalizer";
 import { deduplicateSearchResults } from "../modules/search/search.deduplicator";
-import { rankSearchResults, rerankDocs } from "../modules/search/search.ranker";
+import { rankSearchResults, limitDocs } from "../modules/search/search.ranker";
 import { formatChatHistoryAsString } from "../utils/formatSearchHistory";
 import { getSearxngApiEndpoint } from "../config";
 
@@ -153,27 +152,14 @@ const createBasicAcademicSearchRetrieverChain = (llm: BaseChatModel) => {
   });
 };
 
-const createBasicAcademicSearchAnsweringChain = (
-  llm: BaseChatModel,
-  embeddings: Embeddings
-) => {
+const createBasicAcademicSearchAnsweringChain = (llm: BaseChatModel) => {
   const basicAcademicSearchRetrieverChain = createBasicAcademicSearchRetrieverChain(llm);
 
-  const semanticReranking = RunnableLambda.from(
-    async (input: { query: string; docs: Document[] }) => {
-      const rerankedDocs = await rerankDocs({
-        query: input.query,
-        docs: input.docs,
-        embeddings,
-        limit: 10,
-        threshold: 0.5,
-      });
-      
-      return {
-        query: input.query,
-        docs: rerankedDocs,
-      };
-    }
+  const takeTopDocs = RunnableLambda.from(
+    async (input: { query: string; docs: Document[] }) => ({
+      query: input.query,
+      docs: limitDocs(input.docs, 10),
+    })
   );
 
   const processDocs = RunnableLambda.from(
@@ -203,7 +189,7 @@ const createBasicAcademicSearchAnsweringChain = (
           chat_history: formatChatHistoryAsString(input.chat_history),
         }),
         basicAcademicSearchRetrieverChain,
-        semanticReranking,
+        takeTopDocs,
         processDocs,
       ]),
     }),
@@ -219,14 +205,10 @@ const createBasicAcademicSearchAnsweringChain = (
   });
 };
 
-const basicAcademicSearch = (
-  input: AcademicSearchInput,
-  llm: BaseChatModel,
-  embeddings: Embeddings
-) => {
+const basicAcademicSearch = (input: AcademicSearchInput, llm: BaseChatModel) => {
   const emitter = new eventEmitter();
   try {
-    const basicAcademicSearchAnsweringChain = createBasicAcademicSearchAnsweringChain(llm, embeddings);
+    const basicAcademicSearchAnsweringChain = createBasicAcademicSearchAnsweringChain(llm);
     const stream = basicAcademicSearchAnsweringChain.streamEvents(input, { version: "v1" });
     handleStream(stream, emitter);
   } catch (err) {
@@ -240,12 +222,8 @@ const basicAcademicSearch = (
   return emitter;
 };
 
-const handleAcademicSearch = (
-  input: AcademicSearchInput,
-  llm: BaseChatModel,
-  embeddings: Embeddings
-) => {
-  const eventEmitter = basicAcademicSearch(input, llm, embeddings);
+const handleAcademicSearch = (input: AcademicSearchInput, llm: BaseChatModel) => {
+  const eventEmitter = basicAcademicSearch(input, llm);
   return eventEmitter;
 };
 

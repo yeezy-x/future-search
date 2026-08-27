@@ -119,20 +119,12 @@ const createBasicWebSearchRetrieverChain = (llm) => {
         runName: "FinalSourceRetriever",
     });
 };
-const createBasicWebSearchAnsweringChain = (llm, embeddings) => {
+const createBasicWebSearchAnsweringChain = (llm) => {
     const basicWebSearchRetrieverChain = createBasicWebSearchRetrieverChain(llm);
-    const semanticReranking = runnables_1.RunnableLambda.from(async (input) => {
-        return {
-            query: input.query,
-            docs: await (0, search_ranker_1.rerankDocs)({
-                query: input.query,
-                docs: input.docs,
-                embeddings,
-                limit: 10,
-                threshold: 0.5,
-            }),
-        };
-    });
+    const takeTopDocs = runnables_1.RunnableLambda.from(async (input) => ({
+        query: input.query,
+        docs: (0, search_ranker_1.limitDocs)(input.docs, 10),
+    }));
     const processDocs = runnables_1.RunnableLambda.from(async (input) => {
         return input.docs
             .map((doc, index) => {
@@ -155,7 +147,7 @@ const createBasicWebSearchAnsweringChain = (llm, embeddings) => {
                     chat_history: (0, formatSearchHistory_1.formatChatHistoryAsString)(input.chat_history),
                 }),
                 basicWebSearchRetrieverChain,
-                semanticReranking,
+                takeTopDocs,
                 processDocs,
             ]),
         }),
@@ -170,10 +162,10 @@ const createBasicWebSearchAnsweringChain = (llm, embeddings) => {
         runName: "FinalResponseGenerator",
     });
 };
-const basicWebSearch = (input, llm, embeddings) => {
+const basicWebSearch = (input, llm) => {
     const event = new events_1.default();
     try {
-        const basicWebSearchAnsweringChain = createBasicWebSearchAnsweringChain(llm, embeddings);
+        const basicWebSearchAnsweringChain = createBasicWebSearchAnsweringChain(llm);
         const stream = basicWebSearchAnsweringChain.streamEvents(input, { version: "v1" });
         handleStream(stream, event);
     }
@@ -184,8 +176,8 @@ const basicWebSearch = (input, llm, embeddings) => {
     }
     return event;
 };
-const handleWebSearch = async (input, llm, embeddings) => {
-    const eventEmitter = basicWebSearch(input, llm, embeddings);
+const handleWebSearch = async (input, llm) => {
+    const eventEmitter = basicWebSearch(input, llm);
     return eventEmitter;
 };
 exports.default = handleWebSearch;

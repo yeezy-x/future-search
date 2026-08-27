@@ -1,4 +1,3 @@
-import { ChatOpenAI, OpenAI, OpenAIEmbeddings } from "@langchain/openai";
 import { BaseMessage } from "@langchain/core/messages";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";

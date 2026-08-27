@@ -31,7 +31,24 @@ const formatChatHistoryAsString = (history) => {
 };
 const strParser = new output_parsers_1.StringOutputParser();
 const searxngClient = new searxng_client_1.SearxngClient((0, config_1.getSearxngApiEndpoint)());
-const createImageSearchChain = (llm) => {
+const searchImages = async (searchQuery) => {
+    const res = await searxngClient.search(searchQuery, {
+        categories: ["images"],
+        engines: ["bing images", "google images"],
+    });
+    const images = [];
+    res.results.forEach((result) => {
+        if (result.img_src && result.url && result.title) {
+            images.push({
+                img_src: result.img_src,
+                url: result.url,
+                title: result.title,
+            });
+        }
+    });
+    return images.slice(0, 10);
+};
+const createRephraseChain = (llm) => {
     return runnables_1.RunnableSequence.from([
         runnables_1.RunnableMap.from({
             chat_history: (input) => {
@@ -39,32 +56,24 @@ const createImageSearchChain = (llm) => {
             },
             query: (input) => {
                 return input.query;
-            }
+            },
         }),
         prompts_1.PromptTemplate.fromTemplate(imageSearchChainPrompt),
         llm,
         strParser,
-        runnables_1.RunnableLambda.from(async (input) => {
-            const res = await searxngClient.search(input, {
-                categories: ["images"],
-                engines: ["bing images", "google images"]
-            });
-            const images = [];
-            res.results.forEach((result) => {
-                if (result.img_src && result.url && result.title) {
-                    images.push({
-                        img_src: result.img_src,
-                        url: result.url,
-                        title: result.title,
-                    });
-                }
-            });
-            return images.slice(0, 10);
-        })
     ]);
 };
-const handleImageSearch = (input, llm) => {
-    const imageSearchChain = createImageSearchChain(llm);
-    return imageSearchChain.invoke(input);
+const handleImageSearch = async (input, llm) => {
+    let searchQuery = input.query.trim();
+    try {
+        const rephraseChain = createRephraseChain(llm);
+        const rephrased = (await rephraseChain.invoke(input)).trim();
+        if (rephrased)
+            searchQuery = rephrased;
+    }
+    catch (err) {
+        console.warn("[IMAGE SEARCH] LLM rephrase failed, using original query:", err instanceof Error ? err.message : err);
+    }
+    return searchImages(searchQuery);
 };
 exports.default = handleImageSearch;

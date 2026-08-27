@@ -1,6 +1,5 @@
 import { Router } from "express";
 import {
-  getOllamaApiEndpoint,
   getSelectedModelId,
   hasGeminiApiKey,
   hasOpenRouterApiKey,
@@ -36,7 +35,6 @@ configRouter.get("/", (_req, res) => {
       selectedModelId: isSelectedAvailable
         ? selectedModelId
         : models[0]?.id ?? selectedModelId,
-      ollamaApiUrl: getOllamaApiEndpoint(),
     });
   } catch (err: any) {
     console.error("[CONFIG GET ERROR]", err);
@@ -46,7 +44,7 @@ configRouter.get("/", (_req, res) => {
 
 configRouter.post("/", (req, res) => {
   try {
-    const { selectedModelId, ollamaApiUrl } = req.body;
+    const { selectedModelId } = req.body;
 
     if (selectedModelId) {
       const model = getModelById(selectedModelId);
@@ -62,10 +60,6 @@ configRouter.post("/", (req, res) => {
       }
 
       process.env.SELECTED_MODEL_ID = selectedModelId;
-    }
-
-    if (ollamaApiUrl) {
-      process.env.OLLAMA_BASE_URL = ollamaApiUrl;
     }
 
     res.status(200).json({ message: "Config updated for this server session" });

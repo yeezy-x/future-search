@@ -2,7 +2,6 @@ import { WebSocket, EventEmitter } from "ws";
 import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import handleWebSearch from "../agents/webSearchAgent";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import type { Embeddings } from "@langchain/core/embeddings";
 import handleAcademicSearch from "../agents/academicSearchAgent";
 import handleWritingAssistant from "../agents/writingAssistant";
 import handleYoutubeSearch from "../agents/youtubeSearchAgent";
@@ -22,7 +21,7 @@ const searchHandlers = {
   writingAssistant: handleWritingAssistant,
   youtubeSearch: handleYoutubeSearch,
   redditSearch: handleRedditSearch,
-}
+};
 
 const handleEmitterEvents = (
   emitter: EventEmitter,
@@ -61,8 +60,7 @@ const handleEmitterEvents = (
 export const handleMessage = async (
   message: string,
   ws: WebSocket,
-  llm: BaseChatModel,
-  embeddings: Embeddings
+  llm: BaseChatModel
 ) => {
   try {
     const parsedMessage = JSON.parse(message) as Message;
@@ -72,7 +70,7 @@ export const handleMessage = async (
         JSON.stringify({ type: "error", data: "Invalid message format" })
       );
     }
-    const history: BaseMessage[] = parsedMessage.history.map((msg:any) => {
+    const history: BaseMessage[] = parsedMessage.history.map((msg: any) => {
       if (msg[0] === "human") {
         return new HumanMessage({
           content: msg[1],
@@ -84,24 +82,22 @@ export const handleMessage = async (
       }
     });
     if (parsedMessage.type === "message") {
-      const handler = searchHandlers[parsedMessage.focusMode as keyof typeof searchHandlers];
+      const handler =
+        searchHandlers[
+          parsedMessage.focusMode as keyof typeof searchHandlers
+        ];
       if (handler) {
-        try {        
+        try {
           const emitter = await handler(
             {
               query: parsedMessage.content,
               chat_history: history,
             },
-            llm,
-            embeddings
-          );        
-          handleEmitterEvents(
-            emitter as EventEmitter,
-            ws,
-            id
+            llm
           );
+          handleEmitterEvents(emitter as EventEmitter, ws, id);
         } catch (error) {
-          console.error("[WebSearchAgent ERROR]",error);
+          console.error("[WebSearchAgent ERROR]", error);
           ws.send(
             JSON.stringify({
               type: "error",

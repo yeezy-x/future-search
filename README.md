@@ -9,14 +9,12 @@ AI-powered search chat connected to the internet via SearXNG. Ask questions, get
 - **Image and video search** inline in chat responses
 - **Follow-up suggestions** generated after each answer
 - **Multiple LLM providers** — OpenRouter (free models) and Google Gemini
-- **Local embeddings** via Ollama for semantic search ranking
 - **Session-based UI** — chat history stored in the browser
 
 ## Prerequisites
 
 - Node.js 20+
 - [Docker](https://www.docker.com/) (for SearXNG)
-- [Ollama](https://ollama.com/) (for embeddings)
 - At least one LLM API key: [OpenRouter](https://openrouter.ai/) and/or [Google AI Studio](https://aistudio.google.com/) (Gemini)
 
 ## Quick start
@@ -33,19 +31,9 @@ Edit `.env` and add your API keys. At minimum, set one of `OPENROUTER_API_KEY` o
 |----------|-------------|---------|
 | `PORT` | Backend HTTP + WebSocket port | `3000` |
 | `SEARXNG_URL` | SearXNG instance URL | `http://localhost:8080` |
-| `OLLAMA_BASE_URL` | Ollama API URL | `http://localhost:11434` |
 | `OPENROUTER_API_KEY` | OpenRouter API key | — |
 | `GEMINI_API_KEY` | Google Gemini API key | — |
 | `SELECTED_MODEL_ID` | Default chat model ID | `openrouter-auto-free` |
-| `EMBEDDING_PROVIDER` | Embedding backend | `ollama` |
-| `EMBEDDING_MODEL` | Ollama embedding model | `qwen3-embedding:0.6b` |
-| `SIMILARITY_MEASURE` | Vector similarity metric | `cosine` |
-
-Pull the embedding model in Ollama:
-
-```bash
-ollama pull qwen3-embedding:0.6b
-```
 
 ### 2. Frontend environment
 
@@ -69,7 +57,7 @@ cd ui && npm install
 
 ```bash
 # SearXNG (port 8080)
-docker compose up searxng
+docker compose up searxng -d
 
 # Backend (port 3000)
 npm run dev
@@ -108,18 +96,17 @@ Open [http://localhost:3001](http://localhost:3001).
 │  (port 3001)│     REST /api      │                                  │
 └─────────────┘                    │  Agents: web, academic, youtube, │
                                    │  reddit, writing, image, video   │
-                                   └──────────┬───────────┬───────────┘
-                                              │           │
-                                   ┌──────────▼──┐   ┌────▼─────┐
-                                   │  SearXNG    │   │  Ollama  │
-                                   │  (port 8080)│   │ (embeds) │
-                                   └─────────────┘   └──────────┘
+                                   └──────────────┬───────────────────┘
+                                                  │
+                                   ┌──────────────▼──┐
+                                   │  SearXNG        │
+                                   │  (port 8080)    │
+                                   └─────────────────┘
 ```
 
 - **Backend** (`src/`) — Express HTTP API + WebSocket server
 - **Frontend** (`ui/`) — Next.js App Router with client-side chat sessions
 - **SearXNG** — Meta-search engine for web, academic, YouTube, and Reddit results
-- **Ollama** — Local embeddings for semantic ranking and deduplication
 - **LLMs** — OpenRouter and Gemini via LangChain
 
 ## API routes
@@ -130,7 +117,7 @@ All REST routes are prefixed with `/api`:
 |--------|-------|-------------|
 | `GET` | `/api` | Health check |
 | `GET` | `/api/config` | List available models and current settings |
-| `POST` | `/api/config` | Update model and Ollama URL for the server session |
+| `POST` | `/api/config` | Update model for the server session |
 | `POST` | `/api/suggestions` | Generate follow-up question suggestions |
 | `POST` | `/api/images` | Image search |
 | `POST` | `/api/videos` | Video search |
@@ -152,70 +139,9 @@ Models are filtered by which API keys are configured:
 
 Change the active model in the UI settings dialog or via `SELECTED_MODEL_ID` in `.env`.
 
-## Production deployment (Docker)
-
-Deploy the full stack — frontend, backend, SearXNG, Ollama, and nginx — with a single command.
-
-### 1. Configure production environment
-
-```bash
-cp .env.production.example .env.production
-```
-
-Edit `.env.production` and add at least one API key (`OPENROUTER_API_KEY` or `GEMINI_API_KEY`).
-
-For a VPS with a domain, update the public URLs:
-
-```env
-APP_PORT=80
-NEXT_PUBLIC_API_URL=https://yourdomain.com/api
-NEXT_PUBLIC_WS_URL=wss://yourdomain.com/ws
-```
-
-### 2. Deploy
-
-```bash
-chmod +x scripts/deploy.sh scripts/ollama-init.sh
-./scripts/deploy.sh
-```
-
-Or manually:
-
-```bash
-docker compose -f docker-compose.prod.yml --env-file .env.production up --build -d
-```
-
-Open [http://localhost](http://localhost) (or your domain).
-
-### Production architecture
-
-```
-Browser
-   │
-   ▼
-nginx (:80)
-   ├── /        → frontend (Next.js)
-   ├── /api     → backend (Express REST)
-   └── /ws      → backend (WebSocket)
-                      ├── searxng (:8080)
-                      └── ollama (:11434)
-```
-
-### Useful commands
-
-| Command | Description |
-|---------|-------------|
-| `./scripts/deploy.sh` | Build and start all services |
-| `docker compose -f docker-compose.prod.yml logs -f` | Tail logs |
-| `docker compose -f docker-compose.prod.yml ps` | Service status |
-| `docker compose -f docker-compose.prod.yml down` | Stop and remove containers |
-| `docker compose -f docker-compose.prod.yml down -v` | Stop and remove volumes (including Ollama models) |
-
-The `ollama-init` service automatically pulls the embedding model on first deploy. Subsequent deploys skip re-pulling if the model is already cached in the `ollama_data` volume.
-
 ## Vercel deployment (frontend only)
 
-Only the Next.js UI (`ui/`) can run on Vercel. The backend (Express + WebSocket + Ollama + SearXNG) must stay on Docker or a VPS with a **public URL**.
+Only the Next.js UI (`ui/`) can run on Vercel. The backend (Express + WebSocket + SearXNG) must be hosted separately with a **public URL**.
 
 ### Deploy frontend
 
@@ -250,9 +176,6 @@ future-search/
 │   ├── app/              # App Router pages
 │   ├── components/       # React components
 │   └── lib/              # Client utilities and session storage
-├── docker-compose.yml        # SearXNG only (local dev)
-├── docker-compose.prod.yml   # Full production stack
-├── nginx/nginx.conf          # Reverse proxy config
-├── scripts/deploy.sh         # Production deploy script
-└── searxng-settings.yml      # SearXNG configuration
+├── docker-compose.yml    # SearXNG service
+└── searxng-settings.yml  # SearXNG configuration
 ```
