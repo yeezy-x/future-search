@@ -43,6 +43,13 @@ const toStored = (message: Message): StoredMessage => ({
   sources: documentsToStored(message.sources),
 });
 
+const appendChunk = (current: string, chunk: string) => {
+  if (!chunk) return current;
+  if (!current) return chunk;
+  const needsSpace = !/\s$/.test(current) && !/^\s/.test(chunk);
+  return needsSpace ? `${current} ${chunk}` : `${current}${chunk}`;
+};
+
 const useSocket = (url: string) => {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -170,8 +177,8 @@ const ChatWindow = ({ sessionId }: { sessionId?: string }) => {
   };
 
   const sendMessage = async (message: string) => {
-    const trimmed = message.trim();
-    if (!trimmed || loading) return;
+    if (!message || loading) return;
+    const trimmedMessage = message.trim();
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     let currentSessionId = activeSessionId;
@@ -187,7 +194,7 @@ const ChatWindow = ({ sessionId }: { sessionId?: string }) => {
     setMessageAppeared(false);
 
     if (messages.length === 0) {
-      const title = deriveTitle(trimmed);
+      const title = deriveTitle(trimmedMessage);
       setSessionTitle(title);
       document.title = `${title} - Future Search`;
     }
@@ -199,17 +206,17 @@ const ChatWindow = ({ sessionId }: { sessionId?: string }) => {
     ws.send(
       JSON.stringify({
         type: "message",
-        content: trimmed,
+        content: trimmedMessage,
         focusMode: focusMode,
         copilot: copilotEnabled ? "enabled" : "disabled",
-        history: [...chatHistory, ["human", trimmed]],
+        history: [...chatHistory, ["human", trimmedMessage]],
       })
     );
 
     setMessages((prevMessages) => [
       ...prevMessages,
       {
-        content: trimmed,
+        content: trimmedMessage,
         id: Math.random().toString(36).substring(7),
         role: "user",
         createdAt: new Date(),
@@ -239,11 +246,14 @@ const ChatWindow = ({ sessionId }: { sessionId?: string }) => {
       }
 
       if (data.type === "message") {
+        const chunk=typeof data.data==="string"?data.data:""
+        if(!chunk) return;
+        receivedMessage=appendChunk(receivedMessage,chunk);
         if (!added) {
           setMessages((prevMessages) => [
             ...prevMessages,
             {
-              content: data.data,
+              content: chunk,
               id: data.messageId,
               role: "assistant",
               sources: sources,
@@ -251,26 +261,24 @@ const ChatWindow = ({ sessionId }: { sessionId?: string }) => {
             },
           ]);
           added = true;
+        }else{
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.id === data.messageId) {
+                return { ...msg, content: appendChunk(msg.content,chunk) };
+              }
+              return msg;
+            })
+          );
+          setMessageAppeared(true);
         }
-
-        setMessages((prev) =>
-          prev.map((msg) => {
-            if (msg.id === data.messageId) {
-              return { ...msg, content: msg.content + data.data };
-            }
-            return msg;
-          })
-        );
-
-        receivedMessage += data.data;
-        setMessageAppeared(true);
       }
 
       if (data.type === "messageEnd") {
         setChatHistory((prevHistory) => [
           ...prevHistory,
-          ["human", trimmed],
-          ["assistant", receivedMessage],
+          ["human", trimmedMessage],
+          ["ai", receivedMessage],
         ]);
         ws?.removeEventListener("message", messageHandler);
         setLoading(false);

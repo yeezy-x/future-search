@@ -187,14 +187,13 @@ const handleStream = async (
     emitter.emit(
       "error",
       JSON.stringify({
-        data: "An error has occurred. Please try again later.",
+        data: `An error has occurred please try again later: ${error}`,
       })
     );
   }
 };
 
-const basicRedditSearch = (input: RedditSearchInput, llm: BaseChatModel) => {
-  const emitter = new eventEmitter();
+const basicRedditSearch = (input: RedditSearchInput,llm: BaseChatModel,emitter: eventEmitter) => {
   try {
     const basicRedditSearchAnsweringChain = createBasicRedditSearchAnsweringChain(llm);
     const stream = basicRedditSearchAnsweringChain.streamEvents(
@@ -209,12 +208,14 @@ const basicRedditSearch = (input: RedditSearchInput, llm: BaseChatModel) => {
       })
     );
   }
-  return emitter;
 };
 
-const handleRedditSearch = (input: RedditSearchInput, llm: BaseChatModel) => {
-  const eventEmitter = basicRedditSearch(input, llm);
-  return eventEmitter;
+const handleRedditSearch = (
+  input: RedditSearchInput,
+  llm: BaseChatModel,
+  emitter: eventEmitter
+) => {
+  basicRedditSearch(input, llm, emitter);
 };
 
 export default handleRedditSearch;

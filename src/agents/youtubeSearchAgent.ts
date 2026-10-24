@@ -249,22 +249,15 @@ const handleStream = async (
     emitter.emit(
       "error",
       JSON.stringify({
-        data: "An error has occurred while processing the YouTube search.",
+        data: `An error has occurred while processing the YouTube search: ${error}`,
       })
     );
   }
 };
 
-const basicYoutubeSearch = (
-  query: string,
-  history: BaseMessage[],
-  llm: BaseChatModel
-) => {
-  const emitter = new eventEmitter();
-
+const basicYoutubeSearch = (query: string,history: BaseMessage[],llm: BaseChatModel,emitter: eventEmitter) => {
   try {
     const basicYoutubeSearchAnsweringChain = createBasicYoutubeSearchAnsweringChain(llm);
-
     const stream = basicYoutubeSearchAnsweringChain.streamEvents(
       {
         chat_history: history,
@@ -274,22 +267,23 @@ const basicYoutubeSearch = (
         version: "v1",
       }
     );
-
     handleStream(stream, emitter);
   } catch (err) {
     emitter.emit(
       "error",
       JSON.stringify({
-        data: "An error has occurred please try again later",
+        data: `An error has occurred please try again later: ${err}`,
       })
     );
   }
-
-  return emitter;
 };
 
-const handleYoutubeSearch = (input: YoutubeSearchInput, llm: BaseChatModel) => {
-  return basicYoutubeSearch(input.query, input.chat_history, llm);
+const handleYoutubeSearch = (
+  input: YoutubeSearchInput,
+  llm: BaseChatModel,
+  emitter: eventEmitter
+) => {
+  basicYoutubeSearch(input.query, input.chat_history, llm, emitter);
 };
 
 export default handleYoutubeSearch;

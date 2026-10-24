@@ -64,11 +64,7 @@ const handleStream = async (
   }
 };
 
-const handleWritingAssistant = (
-  input: BasicChainInput,
-  llm: BaseChatModel,
-) => {
-  const emitter = new eventEmitter();
+const handleWritingAssistant = (input: BasicChainInput,llm: BaseChatModel,emitter: eventEmitter) => {
   try {
     const writingAssistantChain = createWritingAssistantChain(llm);
     const stream = writingAssistantChain.streamEvents(
@@ -84,10 +80,9 @@ const handleWritingAssistant = (
   } catch (err) {
     emitter.emit(
       "error",
-      JSON.stringify({ data: "An error has occurred please try again later" })
+      JSON.stringify({ data: `An error has occurred please try again later: ${err}` })
     );
   }
-  return emitter;
 };
 
 export default handleWritingAssistant;

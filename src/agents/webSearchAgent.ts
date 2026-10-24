@@ -9,7 +9,7 @@ import { normalizeSearchResults } from "../modules/search/search.normalizer";
 import { deduplicateSearchResults } from "../modules/search/search.deduplicator";
 import { rankSearchResults, limitDocs } from "../modules/search/search.ranker";
 import { StreamEvent } from "@langchain/core/tracers/log_stream";
-import eventEmitter from "events";
+import eventEmitter, { EventEmitter } from "events";
 import { Document } from "langchain";
 import { formatChatHistoryAsString } from "../utils/formatSearchHistory";
 
@@ -207,29 +207,21 @@ const createBasicWebSearchAnsweringChain = (llm: BaseChatModel) => {
   });
 };
 
-const basicWebSearch = (input: WebSearchChainInput, llm: BaseChatModel) => {
-  const event = new eventEmitter();
+const basicWebSearch = (input: WebSearchChainInput, llm: BaseChatModel, emitter: EventEmitter) => {
   try {
     const basicWebSearchAnsweringChain = createBasicWebSearchAnsweringChain(llm);
     const stream = basicWebSearchAnsweringChain.streamEvents(
       input,
       { version: "v1" }
     );
-    handleStream(stream, event);
+    handleStream(stream, emitter);
   } catch (err) {
-    event.emit(
-      "error",
-      JSON.stringify({
-        data: `An error has occurred please try again later: ${err}`
-      })
-    );
+    emitter.emit("error", JSON.stringify({ data: `An error has occurred please try again later: ${err}` }));
   }
-  return event;
 };
 
-const handleWebSearch = async (input: WebSearchChainInput, llm: BaseChatModel) => {
-  const eventEmitter = basicWebSearch(input, llm);
-  return eventEmitter;
+const handleWebSearch = async (input: WebSearchChainInput, llm: BaseChatModel,emitter: EventEmitter) => {
+  basicWebSearch(input, llm, emitter);
 };
 
 export default handleWebSearch;

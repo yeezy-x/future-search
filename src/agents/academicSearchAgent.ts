@@ -205,8 +205,7 @@ const createBasicAcademicSearchAnsweringChain = (llm: BaseChatModel) => {
   });
 };
 
-const basicAcademicSearch = (input: AcademicSearchInput, llm: BaseChatModel) => {
-  const emitter = new eventEmitter();
+const basicAcademicSearch = (input: AcademicSearchInput,llm: BaseChatModel,emitter: eventEmitter) => {
   try {
     const basicAcademicSearchAnsweringChain = createBasicAcademicSearchAnsweringChain(llm);
     const stream = basicAcademicSearchAnsweringChain.streamEvents(input, { version: "v1" });
@@ -219,12 +218,14 @@ const basicAcademicSearch = (input: AcademicSearchInput, llm: BaseChatModel) => 
       })
     );
   }
-  return emitter;
 };
 
-const handleAcademicSearch = (input: AcademicSearchInput, llm: BaseChatModel) => {
-  const eventEmitter = basicAcademicSearch(input, llm);
-  return eventEmitter;
+const handleAcademicSearch = (
+  input: AcademicSearchInput,
+  llm: BaseChatModel,
+  emitter: eventEmitter
+) => {
+  basicAcademicSearch(input, llm, emitter);
 };
 
 export default handleAcademicSearch;

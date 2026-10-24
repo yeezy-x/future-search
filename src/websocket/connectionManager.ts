@@ -6,21 +6,19 @@ import { getChatModelInstance } from "../modules/ai/model.factory";
 export const handleConnection = async (ws: WebSocket) => {
   console.log("WebSocket connection established");
   try {
-    const llm = getChatModelInstance();
-
-    if (!llm) {
-      ws.send(
-        JSON.stringify({
-          type: "error",
-          data: "Invalid LLM model selected",
-        })
-      );
-      ws.close();
-      return;
-    }
-
     ws.on("message", async (message) => {
       try {
+        const llm=getChatModelInstance()
+        if(!llm){
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              data: "Invalid LLM model selected",
+            })
+          );
+          ws.close();
+          return;
+        }
         await handleMessage(message.toString(), ws, llm);
       } catch (error) {
         console.error("Failed to handle message:", error);
