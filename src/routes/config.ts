@@ -1,13 +1,6 @@
 import { Router } from "express";
-import {
-  getSelectedModelId,
-  hasGeminiApiKey,
-  hasOpenRouterApiKey,
-} from "../config";
-import {
-  FREE_CHAT_MODELS,
-  getModelById,
-} from "../modules/ai/models.registry";
+import { getSelectedModelId, hasGeminiApiKey, hasOpenRouterApiKey } from "../config";
+import { FREE_CHAT_MODELS, getModelById } from "../modules/ai/models.registry";
 
 const configRouter = Router();
 

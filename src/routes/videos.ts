@@ -9,17 +9,14 @@ const videosRouter = Router();
 videosRouter.post("/", async (req, res) => {
   try {
     const { query, chat_history } = req.body;
-
     if (!query || typeof query !== "string") {
       return res.status(400).json({ message: "query is required" });
     }
-
     if (!Array.isArray(chat_history)) {
       return res.status(400).json({ message: "chat_history must be an array" });
     }
 
-    const formatted_chat_history: BaseMessage[] =
-      parseChatHistoryFromRequest(chat_history);
+    const formatted_chat_history: BaseMessage[] = parseChatHistoryFromRequest(chat_history);
 
     if (formatted_chat_history.length === 0) {
       return res.status(400).json({ message: "chat_history must not be empty" });
@@ -33,7 +30,6 @@ videosRouter.post("/", async (req, res) => {
       },
       llm
     );
-
     res.status(200).json({ videos });
   } catch (err: unknown) {
     console.error("[VIDEO ROUTE ERROR]", err);

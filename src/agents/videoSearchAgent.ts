@@ -79,8 +79,8 @@ const handleVideoSearch = async (
   let searchQuery = input.query.trim();
 
   try {
-    const rephraseChain = createRephraseChain(llm);
-    const rephrased = (await rephraseChain.invoke(input)).trim();
+    const rephraseOriginalMessage = createRephraseChain(llm);
+    const rephrased = (await rephraseOriginalMessage.invoke(input)).trim();
     if (rephrased) searchQuery = rephrased;
   } catch (err) {
     console.warn(

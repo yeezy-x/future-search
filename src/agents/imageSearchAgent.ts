@@ -5,6 +5,7 @@ import { RunnableMap, RunnableSequence } from "@langchain/core/runnables";
 import { getSearxngApiEndpoint } from "../config";
 import { SearxngClient } from "../modules/search/searxng.client";
 import type { BaseMessage } from "@langchain/core/messages";
+import { formatChatHistoryAsString } from "../utils/formatSearchHistory";
 
 const imageSearchChainPrompt = `
 You will be given a conversation below and a follow up 
@@ -37,12 +38,6 @@ type ImageResult = {
   title: string;
 };
 
-const formatChatHistoryAsString = (history: BaseMessage[]) => {
-  return history
-    .map((message) => `${message._getType()}: ${message.content}`)
-    .join("\n");
-};
-
 const strParser = new StringOutputParser();
 const searxngClient = new SearxngClient(getSearxngApiEndpoint());
 
@@ -63,7 +58,6 @@ const searchImages = async (searchQuery: string): Promise<ImageResult[]> => {
       });
     }
   });
-
   return images.slice(0, 10);
 };
 
@@ -88,10 +82,9 @@ const handleImageSearch = async (
   llm: BaseChatModel
 ): Promise<ImageResult[]> => {
   let searchQuery = input.query.trim();
-
   try {
-    const rephraseChain = createRephraseChain(llm);
-    const rephrased = (await rephraseChain.invoke(input)).trim();
+    const rephraseOriginalMessage = createRephraseChain(llm);
+    const rephrased = (await rephraseOriginalMessage.invoke(input)).trim();
     if (rephrased) searchQuery = rephrased;
   } catch (err) {
     console.warn(
@@ -99,7 +92,6 @@ const handleImageSearch = async (
       err instanceof Error ? err.message : err
     );
   }
-
   return searchImages(searchQuery);
 };
 

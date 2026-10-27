@@ -9,19 +9,14 @@ const imagesRouter = Router();
 imagesRouter.post("/", async (req, res) => {
   try {
     const { query, chat_history } = req.body;
-
     if (!query || typeof query !== "string") {
       return res.status(400).json({ message: "query is required" });
     }
-
     if (!Array.isArray(chat_history)) {
       return res.status(400).json({ message: "chat_history must be an array" });
     }
-
     const formatted_chat_history: BaseMessage[] = parseChatHistoryFromRequest(chat_history);
-
     const history = formatted_chat_history.length > 0 ? formatted_chat_history : [new HumanMessage(query)];
-
     const llm = getChatModelInstance();
     const images = await handleImageSearch(
       { chat_history: history, query },

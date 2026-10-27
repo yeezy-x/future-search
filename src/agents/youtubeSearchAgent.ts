@@ -1,23 +1,12 @@
 import { BaseMessage } from "@langchain/core/messages";
-import {
-  RunnableSequence,
-  RunnableMap,
-  RunnableLambda,
-} from "@langchain/core/runnables";
-import {
-  PromptTemplate,
-  ChatPromptTemplate,
-  MessagesPlaceholder,
-} from "@langchain/core/prompts";
+import { RunnableBranch, RunnableSequence, RunnableMap, RunnableLambda } from "@langchain/core/runnables";
+import { PromptTemplate, ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { Document } from "@langchain/core/documents";
 import eventEmitter from "events";
 import type { StreamEvent } from "@langchain/core/tracers/log_stream";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import {
-  rankSearchResults,
-  limitDocs,
-} from "../modules/search/search.ranker";
+import { rankSearchResults, limitDocs } from "../modules/search/search.ranker";
 import { deduplicateSearchResults } from "../modules/search/search.deduplicator";
 import { formatChatHistoryAsString } from "../utils/formatSearchHistory";
 import { fetchYoutubeTranscript } from "../utils/yt.transcript";
@@ -25,6 +14,7 @@ import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { getSearxngApiEndpoint } from "../config";
 import { SearxngClient } from "../modules/search/searxng.client";
 import { normalizeSearchResults } from "../modules/search/search.normalizer";
+import { parseRetrieverOutput } from "../utils/retrieverDecision";
 
 const basicYoutubeSearchRetrieverPrompt = `
 You will be given a conversation below and a follow up question. You need to rephrase the follow-up question if needed so it is a standalone question that can be used by the LLM to search the web for information.
@@ -79,6 +69,13 @@ If you think there's nothing relevant in the search results, you can say:
 Today's date is ${new Date().toISOString()}
 `;
 
+const directYoutubeResponsePrompt = `
+You are futuresearch, an AI model answering the user directly.
+The user's message is a greeting, small talk, or a writing task, so no YouTube search was run.
+Reply helpfully from the conversation. Do not mention search results, sources, or citations.
+Do not say that you could not find information.
+`;
+
 const strParser = new StringOutputParser();
 const searchClient = new SearxngClient(getSearxngApiEndpoint());
 
@@ -92,20 +89,33 @@ type YoutubeSearchInput = {
   query: string;
 };
 
+type YoutubeAnswerInput = {
+  query: string;
+  chat_history: BaseMessage[];
+  context: {
+    text: string;
+    skipSearch: boolean;
+  };
+};
+
+type RetrieverResult = {
+  query: string;
+  docs: Document[];
+  skipSearch: boolean;
+};
+
 const createBasicYoutubeSearchRetrieverChain = (llm: BaseChatModel) => {
   return RunnableSequence.from([
     PromptTemplate.fromTemplate(basicYoutubeSearchRetrieverPrompt),
     llm,
     strParser,
     RunnableLambda.from(async (input: string) => {
-      if (input === "not_needed") {
-        return {
-          query: "",
-          docs: [],
-        };
+      const { skipSearch, query } = parseRetrieverOutput(input);
+      if (skipSearch) {
+        return { query: "", docs: [], skipSearch: true };
       }
 
-      const res = await searchClient.search(input, {
+      const res = await searchClient.search(query, {
         language: "en",
         engines: ["youtube"],
       });
@@ -119,7 +129,6 @@ const createBasicYoutubeSearchRetrieverChain = (llm: BaseChatModel) => {
       for (let i = 0; i < rankedResults.length; i++) {
         const result = rankedResults[i];
         const transcript = await fetchYoutubeTranscript(result.url);
-
         if (!transcript) {
           continue;
         }
@@ -140,10 +149,7 @@ const createBasicYoutubeSearchRetrieverChain = (llm: BaseChatModel) => {
         documents.push(...chunks);
       }
 
-      return {
-        query: input,
-        docs: documents,
-      };
+      return { query, docs: documents, skipSearch: false };
     }),
   ]).withConfig({
     runName: "FinalSourceRetriever",
@@ -153,34 +159,32 @@ const createBasicYoutubeSearchRetrieverChain = (llm: BaseChatModel) => {
 const createBasicYoutubeSearchAnsweringChain = (llm: BaseChatModel) => {
   const basicYoutubeSearchRetrieverChain = createBasicYoutubeSearchRetrieverChain(llm);
 
-  const takeTopDocs = RunnableLambda.from(
-    async (input: { query: string; docs: Document[] }) => ({
-      query: input.query,
-      docs: limitDocs(input.docs, 10),
-    })
-  );
+  const takeTopDocs = RunnableLambda.from(async (input: RetrieverResult) => ({
+    query: input.query,
+    docs: limitDocs(input.docs, 10),
+    skipSearch: input.skipSearch,
+  }));
 
-  const processDocs = RunnableLambda.from(
-    async (input: { query: string; docs: Document[] }) => {
-      return input.docs
-        .map((doc, index) => {
-          return [
-            `[${index + 1}]`,
-            `Title: ${doc.metadata.title}`,
-            `URL: ${doc.metadata.url}`,
-            `Content: ${doc.pageContent}`,
-          ].join("\n");
-        })
-        .join("\n\n");
-    }
-  );
+  const processDocs = RunnableLambda.from(async (input: RetrieverResult) => ({
+    text: input.docs
+      .map((doc, index) =>
+        [
+          `[${index + 1}]`,
+          `Title: ${doc.metadata.title}`,
+          `URL: ${doc.metadata.url}`,
+          `Content: ${doc.pageContent}`,
+        ].join("\n")
+      )
+      .join("\n\n"),
+    skipSearch: input.skipSearch,
+  }));
 
   return RunnableSequence.from([
     RunnableMap.from({
       query: (input: YoutubeSearchInput) => input.query,
       chat_history: (input: YoutubeSearchInput) => input.chat_history,
       context: RunnableSequence.from([
-        (input) => ({
+        (input: YoutubeSearchInput) => ({
           query: input.query,
           chat_history: formatChatHistoryAsString(input.chat_history),
         }),
@@ -189,13 +193,38 @@ const createBasicYoutubeSearchAnsweringChain = (llm: BaseChatModel) => {
         processDocs,
       ]),
     }),
-    ChatPromptTemplate.fromMessages([
-      ["system", basicYoutubeSearchResponsePrompt],
-      new MessagesPlaceholder("chat_history"),
-      ["user", "{query}"],
+    RunnableBranch.from([
+      [
+        (input: YoutubeAnswerInput) => input.context.skipSearch,
+        RunnableSequence.from([
+          (input: YoutubeAnswerInput) => ({
+            query: input.query,
+            chat_history: input.chat_history,
+          }),
+          ChatPromptTemplate.fromMessages([
+            ["system", directYoutubeResponsePrompt],
+            new MessagesPlaceholder("chat_history"),
+            ["user", "{query}"],
+          ]),
+          llm,
+          strParser,
+        ]),
+      ],
+      RunnableSequence.from([
+        (input: YoutubeAnswerInput) => ({
+          query: input.query,
+          chat_history: input.chat_history,
+          context: input.context.text,
+        }),
+        ChatPromptTemplate.fromMessages([
+          ["system", basicYoutubeSearchResponsePrompt],
+          new MessagesPlaceholder("chat_history"),
+          ["user", "{query}"],
+        ]),
+        llm,
+        strParser,
+      ]),
     ]),
-    llm,
-    strParser,
   ]).withConfig({
     runName: "FinalResponseGenerator",
   });
@@ -233,7 +262,7 @@ const handleStream = async (
           "data",
           JSON.stringify({
             type: "response",
-            data: event.data.chunk,
+            data: chunk,
           })
         );
       }
@@ -255,7 +284,12 @@ const handleStream = async (
   }
 };
 
-const basicYoutubeSearch = (query: string,history: BaseMessage[],llm: BaseChatModel,emitter: eventEmitter) => {
+const basicYoutubeSearch = (
+  query: string,
+  history: BaseMessage[],
+  llm: BaseChatModel,
+  emitter: eventEmitter
+) => {
   try {
     const basicYoutubeSearchAnsweringChain = createBasicYoutubeSearchAnsweringChain(llm);
     const stream = basicYoutubeSearchAnsweringChain.streamEvents(

@@ -15,9 +15,7 @@ const extractYoutubeVideoId = (url: string): string | null => {
   }
 };
 
-export const fetchYoutubeTranscript = async (
-  url: string
-): Promise<string | null> => {
+export const fetchYoutubeTranscript = async (url: string): Promise<string | null> => {
   const videoId = extractYoutubeVideoId(url);
   if (!videoId) {
     console.log("[TRANSCRIPT] Could not extract video ID");
@@ -31,10 +29,7 @@ export const fetchYoutubeTranscript = async (
       .trim();
     return text || null;
   } catch (error) {
-    console.error(
-      "[TRANSCRIPT] Failed:",
-      error
-    );
+    console.error("[TRANSCRIPT] Failed:",error);
     return null;
   }
 };

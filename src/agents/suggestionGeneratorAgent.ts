@@ -15,8 +15,7 @@ Tell me more about SpaceX and their recent projects
 What is the latest news on SpaceX?
 Who is the CEO of SpaceX?
 </suggestions>
-Conversation:
-{chat_history}
+Conversation:{chat_history}
 `;
 
 type SuggestionGeneratorInput = {

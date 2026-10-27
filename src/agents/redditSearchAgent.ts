@@ -1,7 +1,7 @@
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { BaseMessage, Document } from "langchain";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { RunnableLambda, RunnableMap, RunnableSequence } from "@langchain/core/runnables";
+import { RunnableBranch, RunnableLambda, RunnableMap, RunnableSequence } from "@langchain/core/runnables";
 import { getSearxngApiEndpoint } from "../config";
 import { SearxngClient } from "../modules/search/searxng.client";
 import { ChatPromptTemplate, MessagesPlaceholder, PromptTemplate } from "@langchain/core/prompts";
@@ -11,7 +11,7 @@ import { rankSearchResults, limitDocs } from "../modules/search/search.ranker";
 import { formatChatHistoryAsString } from "../utils/formatSearchHistory";
 import { StreamEvent } from "@langchain/core/tracers/log_stream";
 import eventEmitter from "events";
-import fs from "fs";
+import { parseRetrieverOutput } from "../utils/retrieverDecision";
 
 const basicRedditSearchRetrieverPrompt = `
 You will be given a conversation below and a follow up question. You need to rephrase the follow-up question if needed so it is a standalone question that can be used by the LLM to search the web for information.
@@ -47,6 +47,13 @@ If you think there's nothing relevant in the search results, you can say that 'H
 Anything between the \`context\` is retrieved from Reddit and is not a part of the conversation with the user. Today's date is ${new Date().toISOString()}
 `;
 
+const directRedditResponsePrompt = `
+You are futuresearch, an AI model answering the user directly.
+The user's message is a greeting, small talk, or a writing task, so no Reddit search was run.
+Reply helpfully from the conversation. Do not mention search results, sources, or citations.
+Do not say that you could not find information.
+`;
+
 const strParser = new StringOutputParser();
 const searchClient = new SearxngClient(getSearxngApiEndpoint());
 
@@ -55,17 +62,32 @@ type RedditSearchInput = {
   query: string;
 };
 
+type RetrievalResult = {
+  query: string;
+  docs: Document[];
+  skipSearch: boolean;
+};
+
+type RedditAnswerInput = {
+  query: string;
+  chat_history: BaseMessage[];
+  context: {
+    text: string;
+    skipSearch: boolean;
+  };
+};
+
 const createBasicRedditSearchRetrieverChain = (llm: BaseChatModel) => {
   return RunnableSequence.from([
     PromptTemplate.fromTemplate(basicRedditSearchRetrieverPrompt),
     llm,
     strParser,
     RunnableLambda.from(async (input: string) => {
-      if (input == "not_needed") {
-        return { query: "", docs: [] };
+      const { skipSearch, query } = parseRetrieverOutput(input);
+      if (skipSearch) {
+        return { query: "", docs: [] ,skipSearch:true};
       }
-      
-      const res = await searchClient.search(input, {
+      const res = await searchClient.search(query, {
         language: "en",
         engines: ["reddit", "reddit.com"],
       });
@@ -88,7 +110,7 @@ const createBasicRedditSearchRetrieverChain = (llm: BaseChatModel) => {
           })
       );
       
-      return { query: input, docs: documents };
+      return { query, docs: documents, skipSearch:false };
     }),
   ]).withConfig({ runName: "FinalSourceRetriever" });
 };
@@ -96,19 +118,14 @@ const createBasicRedditSearchRetrieverChain = (llm: BaseChatModel) => {
 const createBasicRedditSearchAnsweringChain = (llm: BaseChatModel) => {
   const basicRedditSearchRetrieverChain = createBasicRedditSearchRetrieverChain(llm);
 
-  const takeTopDocs = RunnableLambda.from(async (input: {
-    query: string;
-    docs: Document[];
-  }) => ({
+  const takeTopDocs = RunnableLambda.from(async (input: RetrievalResult) => ({
     query: input.query,
     docs: limitDocs(input.docs, 10),
+    skipSearch: input.skipSearch,
   }));
   
-  const processDocs = RunnableLambda.from(async (input: {
-    query: string;
-    docs: Document[];
-  }) => {
-    return input.docs
+  const processDocs = RunnableLambda.from(async (input: RetrievalResult) => ({
+    text: input.docs
       .map((doc, index) => {
         return [
           `[${index + 1}]`,
@@ -117,15 +134,16 @@ const createBasicRedditSearchAnsweringChain = (llm: BaseChatModel) => {
           `Content: ${doc.pageContent}`,
         ].join("\n");
       })
-      .join("\n\n");
-  });
+      .join("\n\n"),
+    skipSearch: input.skipSearch,
+  }));
   
   return RunnableSequence.from([
     RunnableMap.from({
       query: (input: RedditSearchInput) => input.query,
       chat_history: (input: RedditSearchInput) => input.chat_history,
       context: RunnableSequence.from([
-        (input) => ({
+        (input: RedditSearchInput) => ({
           query: input.query,
           chat_history: formatChatHistoryAsString(input.chat_history),
         }),
@@ -134,13 +152,38 @@ const createBasicRedditSearchAnsweringChain = (llm: BaseChatModel) => {
         processDocs
       ])
     }),
-    ChatPromptTemplate.fromMessages([
-      ["system", basicRedditSearchResponsePrompt],
-      new MessagesPlaceholder("chat_history"),
-      ["user", "{query}"],
+    RunnableBranch.from([
+      [
+        (input: RedditAnswerInput) => input.context.skipSearch,
+        RunnableSequence.from([
+          (input:RedditAnswerInput)=>({
+            query: input.query,
+            chat_history: input.chat_history,
+          }),
+          ChatPromptTemplate.fromMessages([
+            ["system", directRedditResponsePrompt],
+            new MessagesPlaceholder("chat_history"),
+            ["user", "{query}"],
+          ]),
+          llm,
+          strParser,
+        ]),
+      ],
+      RunnableSequence.from([
+        (input: RedditAnswerInput) => ({
+          query: input.query,
+          chat_history: input.chat_history,
+          context: input.context.text,
+        }),
+        ChatPromptTemplate.fromMessages([
+          ["system", basicRedditSearchResponsePrompt],
+          new MessagesPlaceholder("chat_history"),
+          ["user", "{query}"],
+        ]),
+        llm,
+        strParser,
+      ]),
     ]),
-    llm,
-    strParser,
   ]).withConfig({ runName: "FinalResponseGenerator" });
 };
 

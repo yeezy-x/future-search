@@ -1,20 +1,36 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { StreamEvent } from "@langchain/core/tracers/log_stream";
-import { BaseMessage, context, Document } from "langchain";
+import { BaseMessage, Document } from "langchain";
 import eventEmitter from "events";
 import { ChatPromptTemplate, MessagesPlaceholder, PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
-import { RunnableLambda, RunnableMap, RunnableSequence } from "@langchain/core/runnables";
+import { RunnableBranch, RunnableLambda, RunnableMap, RunnableSequence } from "@langchain/core/runnables";
 import { SearxngClient } from "../modules/search/searxng.client";
 import { normalizeSearchResults } from "../modules/search/search.normalizer";
 import { deduplicateSearchResults } from "../modules/search/search.deduplicator";
 import { rankSearchResults, limitDocs } from "../modules/search/search.ranker";
 import { formatChatHistoryAsString } from "../utils/formatSearchHistory";
 import { getSearxngApiEndpoint } from "../config";
+import { parseRetrieverOutput } from "../utils/retrieverDecision";
 
 type AcademicSearchInput = {
   chat_history: BaseMessage[];
   query: string;
+};
+
+type AcademicAnswerInput = {
+  query: string;
+  chat_history: BaseMessage[];
+  context: {
+    text: string;
+    skipSearch: boolean;
+  };
+};
+
+type RetrieverResult = {
+  query: string;
+  docs: Document[];
+  skipSearch: boolean;
 };
 
 const basicAcademicSearchRetrieverPrompt = `
@@ -42,13 +58,20 @@ Your responses should be medium to long in length be informative and relevant to
 You have to cite the answer using [number] notation. You must cite the sentences with their relevant context number. You must cite each and every part of the answer so the user can know where the information is coming from.
 Place these citations at the end of that particular sentence. You can cite the same sentence multiple times if it is relevant to the user's query like [number1][number2].
 However you do not need to cite it using the same number. You can use different numbers to cite the same sentence multiple times. The number refers to the number of the search result (passed in the context) used to generate that part of the answer.
-Anything inside the following \`context\` HTML block provided below is for your knowledge returned by the search engine and is not shared by the user. You have to answer question on the basis of it and cite the relevant information from it but you do not have to 
-talk about the context in your response. 
+Anything inside the following \`context\` HTML block provided below is for your knowledge returned by the search engine and is not shared by the user. You have to answer question on the basis of it and cite the relevant information from it but you do not have to
+talk about the context in your response.
 <context>
 {context}
 </context>
 If you think there's nothing relevant in the search results, you can say that 'Hmm, sorry I could not find any relevant information on this topic. Would you like me to search again or ask something else?'.
 Anything between the \`context\` is retrieved from a search engine and is not a part of the conversation with the user. Today's date is ${new Date().toISOString()}
+`;
+
+const directAcademicResponsePrompt = `
+You are futuresearch, an AI model answering the user directly.
+The user's message is a greeting, small talk, or a writing task, so no academic search was run.
+Reply helpfully from the conversation. Do not mention search results, sources, or citations.
+Do not say that you could not find information.
 `;
 
 const handleStream = async (
@@ -113,11 +136,11 @@ const createBasicAcademicSearchRetrieverChain = (llm: BaseChatModel) => {
     llm,
     strParser,
     RunnableLambda.from(async (input: string) => {
-      if (input == "not_needed") {
-        return { query: "", docs: [] };
+      const { skipSearch, query } = parseRetrieverOutput(input);
+      if (skipSearch) {
+        return { query: "", docs: [], skipSearch: true };
       }
-
-      const res = await searchClient.search(input, {
+      const res = await searchClient.search(query, {
         language: "en",
         engines: [
           "arxiv",
@@ -126,11 +149,11 @@ const createBasicAcademicSearchRetrieverChain = (llm: BaseChatModel) => {
           "pubmed",
         ],
       });
-      
+
       const normalizedResults = normalizeSearchResults(res.results);
       const uniqueResults = deduplicateSearchResults(normalizedResults);
       const rankedResults = rankSearchResults(uniqueResults, 20);
-      
+
       const documents = rankedResults.map(
         (result) =>
           new Document({
@@ -144,8 +167,8 @@ const createBasicAcademicSearchRetrieverChain = (llm: BaseChatModel) => {
             },
           })
       );
-      
-      return { query: input, docs: documents };
+
+      return { query, docs: documents, skipSearch: false };
     }),
   ]).withConfig({
     runName: "FinalSourceRetriever",
@@ -155,36 +178,32 @@ const createBasicAcademicSearchRetrieverChain = (llm: BaseChatModel) => {
 const createBasicAcademicSearchAnsweringChain = (llm: BaseChatModel) => {
   const basicAcademicSearchRetrieverChain = createBasicAcademicSearchRetrieverChain(llm);
 
-  const takeTopDocs = RunnableLambda.from(
-    async (input: { query: string; docs: Document[] }) => ({
-      query: input.query,
-      docs: limitDocs(input.docs, 10),
-    })
-  );
+  const takeTopDocs = RunnableLambda.from(async (input: RetrieverResult) => ({
+    query: input.query,
+    docs: limitDocs(input.docs, 10),
+    skipSearch: input.skipSearch,
+  }));
 
-  const processDocs = RunnableLambda.from(
-    async (input: { query: string; docs: Document[] }) => {
-      const context = input.docs
-        .map((doc, index) => {
-          return [
-            `[${index + 1}]`,
-            `Title: ${doc.metadata.title}`,
-            `URL: ${doc.metadata.url}`,
-            `Content: ${doc.pageContent}`,
-          ].join("\n");
-        })
-        .join("\n\n");
+  const processDocs = RunnableLambda.from(async (input: RetrieverResult) => ({
+    text: input.docs
+      .map((doc, index) =>
+        [
+          `[${index + 1}]`,
+          `Title: ${doc.metadata.title}`,
+          `URL: ${doc.metadata.url}`,
+          `Content: ${doc.pageContent}`,
+        ].join("\n")
+      )
+      .join("\n\n"),
+    skipSearch: input.skipSearch,
+  }));
 
-      return context;
-    }
-  );
-  
   return RunnableSequence.from([
     RunnableMap.from({
       query: (input: AcademicSearchInput) => input.query,
       chat_history: (input: AcademicSearchInput) => input.chat_history,
       context: RunnableSequence.from([
-        (input) => ({
+        (input: AcademicSearchInput) => ({
           query: input.query,
           chat_history: formatChatHistoryAsString(input.chat_history),
         }),
@@ -193,26 +212,54 @@ const createBasicAcademicSearchAnsweringChain = (llm: BaseChatModel) => {
         processDocs,
       ]),
     }),
-    ChatPromptTemplate.fromMessages([
-      ["system", basicAcademicSearchResponsePrompt],
-      new MessagesPlaceholder("chat_history"),
-      ["user", "{query}"],
+    RunnableBranch.from([
+      [
+        (input: AcademicAnswerInput) => input.context.skipSearch,
+        RunnableSequence.from([
+          (input: AcademicAnswerInput) => ({
+            query: input.query,
+            chat_history: input.chat_history,
+          }),
+          ChatPromptTemplate.fromMessages([
+            ["system", directAcademicResponsePrompt],
+            new MessagesPlaceholder("chat_history"),
+            ["user", "{query}"],
+          ]),
+          llm,
+          strParser,
+        ]),
+      ],
+      RunnableSequence.from([
+        (input: AcademicAnswerInput) => ({
+          query: input.query,
+          chat_history: input.chat_history,
+          context: input.context.text,
+        }),
+        ChatPromptTemplate.fromMessages([
+          ["system", basicAcademicSearchResponsePrompt],
+          new MessagesPlaceholder("chat_history"),
+          ["user", "{query}"],
+        ]),
+        llm,
+        strParser,
+      ]),
     ]),
-    llm,
-    strParser,
   ]).withConfig({
     runName: "FinalResponseGenerator",
   });
 };
 
-const basicAcademicSearch = (input: AcademicSearchInput,llm: BaseChatModel,emitter: eventEmitter) => {
+const basicAcademicSearch = (
+  input: AcademicSearchInput,
+  llm: BaseChatModel,
+  emitter: eventEmitter
+) => {
   try {
     const basicAcademicSearchAnsweringChain = createBasicAcademicSearchAnsweringChain(llm);
     const stream = basicAcademicSearchAnsweringChain.streamEvents(input, { version: "v1" });
     handleStream(stream, emitter);
   } catch (err) {
-    emitter.emit(
-      "error",
+    emitter.emit("error",
       JSON.stringify({
         data: `An error has occurred please try again later: ${err}`,
       })
@@ -220,11 +267,7 @@ const basicAcademicSearch = (input: AcademicSearchInput,llm: BaseChatModel,emitt
   }
 };
 
-const handleAcademicSearch = (
-  input: AcademicSearchInput,
-  llm: BaseChatModel,
-  emitter: eventEmitter
-) => {
+const handleAcademicSearch = (input: AcademicSearchInput, llm: BaseChatModel, emitter: eventEmitter) => {
   basicAcademicSearch(input, llm, emitter);
 };
 
